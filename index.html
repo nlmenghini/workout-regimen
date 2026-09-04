@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garage Log</title>
+<meta name="description" content="Garage gym workout tracker — log sets, track history, and follow your strength program offline.">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1c1b18">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Garage Log">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c1b18;
+    --ink-soft:#5c574c;
+    --paper:#e7e3d8;
+    --paper-raised:#f4f1e8;
+    --line:#cdc6b4;
+    --accent:#bd4c1f;
+    --accent-ink:#fbf2ea;
+    --accent-2:#48693f;
+    --accent-2-soft:#dfe7d5;
+    --steel:#3c5468;
+    --danger:#a3392a;
+    --shadow: 0 1px 0 rgba(28,27,24,0.05);
+    --radius: 14px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#ece7db;
+      --ink-soft:#a8a191;
+      --paper:#171613;
+      --paper-raised:#211f1b;
+      --line:#38352c;
+      --accent:#e2743f;
+      --accent-ink:#1c1108;
+      --accent-2:#7fae72;
+      --accent-2-soft:#25301f;
+      --steel:#7ea0b8;
+      --danger:#e0685a;
+      --shadow: 0 1px 0 rgba(0,0,0,0.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#ece7db;
+    --ink-soft:#a8a191;
+    --paper:#171613;
+    --paper-raised:#211f1b;
+    --line:#38352c;
+    --accent:#e2743f;
+    --accent-ink:#1c1108;
+    --accent-2:#7fae72;
+    --accent-2-soft:#25301f;
+    --steel:#7ea0b8;
+    --danger:#e0685a;
+    --shadow: 0 1px 0 rgba(0,0,0,0.35);
+    color-scheme: dark;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom:78px;
+    position:relative;
+  }
+  h1,h2,h3,.display{
+    font-family:'Oswald', ui-sans-serif, system-ui, sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.02em;
+    text-wrap:balance;
+    margin:0;
+  }
+  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums; }
+  button{ font-family:inherit; }
+  input:focus-visible, button:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+
+  header.top{
+    padding:calc(20px + env(safe-area-inset-top)) 20px 16px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:6px;
+  }
+  .eyebrow .stat{ color:var(--accent); font-weight:600; }
+  .eyebrow .sync{ display:flex; align-items:center; gap:5px; }
+  .eyebrow .sync .dot{ width:6px; height:6px; border-radius:50%; background:var(--ink-soft); flex-shrink:0; }
+  .eyebrow .sync.is-synced .dot{ background:var(--accent-2); }
+  .eyebrow .sync.is-offline .dot{ background:var(--danger); }
+  .headline{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+  .headline h1{ font-size:30px; font-weight:600; line-height:1; }
+  .headline .subtitle{ font-size:14px; color:var(--ink-soft); margin-top:4px; }
+  .day-picker{ display:flex; gap:6px; margin-top:14px; }
+  .day-picker button{
+    flex:1; border:1px solid var(--line); background:var(--paper-raised); color:var(--ink);
+    border-radius:10px; padding:8px 4px; font-family:'Oswald', sans-serif; font-size:13px;
+    letter-spacing:0.04em; text-transform:uppercase; cursor:pointer;
+  }
+  .day-picker button.active{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+
+  main{ flex:1; padding:16px 16px 8px; }
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  .install-banner{
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--accent-2-soft);
+    border:1px solid var(--accent-2);
+    color:var(--ink);
+    border-radius:var(--radius);
+    padding:10px 12px;
+    font-size:12.5px;
+    margin-bottom:16px;
+  }
+  .install-banner.show{ display:flex; }
+  .install-banner button{
+    border:none; background:var(--accent-2); color:var(--accent-ink);
+    border-radius:8px; padding:7px 12px; font-size:12px; font-weight:600; cursor:pointer; flex-shrink:0;
+  }
+
+  .warmup{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius);
+    padding:12px 14px; font-size:13px; color:var(--ink-soft); margin-bottom:16px;
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .warmup .tag{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.1em; color:var(--accent);
+    text-transform:uppercase; flex-shrink:0; padding-top:2px;
+  }
+
+  .exercise{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:14px; margin-bottom:10px;
+  }
+  .exercise-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:2px; }
+  .exercise-head h3{ font-size:17px; font-weight:600; }
+  .exercise-head .target{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-soft); white-space:nowrap; padding-top:2px; }
+  .exercise .note{ font-size:12px; color:var(--ink-soft); margin:2px 0 10px; }
+  .exercise .prev{ font-size:11px; color:var(--steel); font-family:'IBM Plex Mono', monospace; margin:-4px 0 10px; }
+
+  .set-row{ display:grid; grid-template-columns:44px 1fr 16px 1fr 22px; align-items:center; gap:8px; padding:6px 0; }
+  .set-row.type-reps, .set-row.type-time{ grid-template-columns:44px 1fr 22px; }
+  .set-row + .set-row{ border-top:1px dashed var(--line); }
+  .set-label{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); }
+  .set-row input{
+    width:100%; border:1px solid var(--line); background:var(--paper); color:var(--ink);
+    border-radius:8px; padding:8px 8px; font-family:'IBM Plex Mono', monospace; font-size:15px;
+    text-align:center; font-variant-numeric:tabular-nums;
+  }
+  .set-row input::placeholder{ color:var(--ink-soft); opacity:0.55; }
+  .set-x{ text-align:center; color:var(--ink-soft); font-size:12px; }
+  .set-check{
+    width:18px; height:18px; border-radius:50%; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; transition:background 0.15s, border-color 0.15s;
+  }
+  .set-row.filled .set-check{ background:var(--accent-2); border-color:var(--accent-2); }
+  .set-check svg{ width:11px; height:11px; opacity:0; transition:opacity .15s; }
+  .set-row.filled .set-check svg{ opacity:1; }
+
+  .finish-bar{ padding:12px 16px calc(4px + env(safe-area-inset-bottom)); }
+  .finish-btn{
+    width:100%; border:none; border-radius:12px; background:var(--ink); color:var(--paper);
+    font-family:'Oswald', sans-serif; font-size:16px; letter-spacing:0.04em; text-transform:uppercase;
+    padding:14px; cursor:pointer;
+  }
+  .finish-btn:disabled{ opacity:0.4; cursor:default; }
+  .finish-note{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:8px; }
+  .toast{
+    position:fixed; left:50%; bottom:96px; transform:translate(-50%,8px);
+    background:var(--accent-2); color:var(--accent-ink); padding:10px 18px; border-radius:999px;
+    font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+    white-space:nowrap; z-index:20;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  .session-card{ background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:10px; overflow:hidden; }
+  .session-summary{ display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer; }
+  .day-chip{
+    width:34px; height:34px; border-radius:9px; background:var(--ink); color:var(--paper);
+    display:flex; align-items:center; justify-content:center; font-family:'Oswald', sans-serif;
+    font-weight:600; font-size:16px; flex-shrink:0;
+  }
+  .session-summary .meta{ flex:1; min-width:0; }
+  .session-summary .date{ font-size:14px; font-weight:600; }
+  .session-summary .sub{ font-size:12px; color:var(--ink-soft); }
+  .session-summary .vol{ font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--steel); text-align:right; }
+  .session-summary .vol span{ display:block; font-size:9px; color:var(--ink-soft); letter-spacing:0.08em; }
+  .session-detail{ display:none; padding:0 14px 14px; font-size:13px; }
+  .session-card.open .session-detail{ display:block; }
+  .session-detail .entry{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px dashed var(--line); }
+  .session-detail .entry .ex-name{ color:var(--ink); }
+  .session-detail .entry .ex-sets{ font-family:'IBM Plex Mono', monospace; color:var(--ink-soft); text-align:right; }
+
+  .empty{ text-align:center; padding:48px 20px; color:var(--ink-soft); font-size:14px; }
+
+  .prog-day{ margin-bottom:20px; }
+  .prog-day h2{ font-size:18px; margin-bottom:2px; }
+  .prog-day .sub{ font-size:12px; color:var(--ink-soft); margin-bottom:10px; }
+  .prog-table{ border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:var(--paper-raised); }
+  .prog-row{ display:flex; justify-content:space-between; gap:10px; padding:10px 12px; font-size:13px; }
+  .prog-row + .prog-row{ border-top:1px solid var(--line); }
+  .prog-row .pname{ font-weight:500; }
+  .prog-row .pnote{ font-size:11px; color:var(--ink-soft); display:block; margin-top:2px; }
+  .prog-row .ptarget{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--steel); white-space:nowrap; }
+  .rules{ background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius); padding:14px; font-size:13px; line-height:1.55; color:var(--ink-soft); }
+  .rules strong{ color:var(--ink); }
+
+  nav.tabbar{
+    position:fixed; left:0; right:0; bottom:0; max-width:480px; margin:0 auto; display:flex;
+    background:var(--paper-raised); border-top:1px solid var(--line);
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom)); z-index:10;
+  }
+  nav.tabbar button{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:none;
+    border:none; color:var(--ink-soft); font-size:10px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:6px 0 4px; cursor:pointer;
+  }
+  nav.tabbar button svg{ width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.7; }
+  nav.tabbar button.active{ color:var(--accent); }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="eyebrow">
+      <span class="sync" id="sync-status"><span class="dot"></span><span id="sync-label">Local only</span></span>
+      <span class="stat" id="stat-line">Session 1</span>
+    </div>
+    <div class="headline">
+      <div>
+        <h1 id="day-title">Day A</h1>
+        <div class="subtitle" id="day-subtitle">Squat &amp; Push · Week 1</div>
+      </div>
+    </div>
+    <div class="day-picker" id="day-picker">
+      <button data-day="A">Day A</button>
+      <button data-day="B">Day B</button>
+      <button data-day="C">Day C</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="view active" id="view-today">
+      <div class="install-banner" id="install-banner">
+        <span>Install Garage Log on this device for offline use.</span>
+        <button id="install-btn">Install</button>
+      </div>
+      <div class="warmup"><span class="tag">Warm‑up</span><span id="warmup-text"></span></div>
+      <div id="exercise-list"></div>
+    </section>
+
+    <section class="view" id="view-history">
+      <div id="history-list"></div>
+    </section>
+
+    <section class="view" id="view-program">
+      <div id="program-list"></div>
+      <div class="rules">
+        <strong>Progression.</strong> Weeks 1–2: leave 2–3 reps in reserve (RPE 6–7), dial in form. Weeks 3–4: leave 1–2 in reserve (RPE 7–8), add 5–10lb once every set at the top of the rep range feels solid for two sessions running. Every 5th week, deload — same weights, roughly half the sets. Sharp joint pain (ankle/knee) means regress or swap the move, not push through.
+      </div>
+    </section>
+  </main>
+
+  <div class="finish-bar" id="finish-bar">
+    <button class="finish-btn" id="finish-btn" disabled>Finish Session</button>
+    <div class="finish-note" id="finish-note">Log at least one set to finish</div>
+  </div>
+
+  <div class="toast" id="toast">Session saved</div>
+
+  <nav class="tabbar">
+    <button data-view="today" class="active">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6M8 6v12M20 9v6M16 6v12M8 12h8"/></svg>
+      Today
+    </button>
+    <button data-view="history">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+      History
+    </button>
+    <button data-view="program">
+      <svg viewBox="0 0 24 24"><path d="M4 4.5h11a3 3 0 0 1 3 3V20H7a3 3 0 0 1-3-3V4.5Z"/><path d="M4 17h14"/></svg>
+      Program
+    </button>
+  </nav>
+</div>
+
+<script src="./firebase-config.js"></script>
+<script type="module">
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = 'garage-log-sessions';
+
+  var PROGRAM = {
+    A: { title:"Squat & Push", warmup:"5 min easy bike spin, then band lateral + monster walks, 2×10 each direction",
+      exercises:[
+        {id:'box-squat', name:'Box Squat', target:'3 × 8', type:'load', note:'Box sets your depth — keep it consistent'},
+        {id:'bench-press', name:'Barbell Bench Press', target:'3 × 8–10', type:'load'},
+        {id:'sl-rdl', name:'Single-Leg RDL', target:'3 × 8 /side', type:'load', note:'Kettlebell or dumbbell'},
+        {id:'hip-thrust', name:'Hip Thrust', target:'3 × 10', type:'load', note:'Shoulders on bench, bar across hips'},
+        {id:'skull-crushers', name:'Skull Crushers', target:'3 × 10–12', type:'load', note:'Curl bar, lying on bench'},
+        {id:'calf-raise', name:'Standing Calf Raise', target:'3 × 15', type:'load', note:'Hold a plate or dumbbell'}
+      ]
+    },
+    B: { title:"Hinge & Pull", warmup:"5 min easy bike spin, then glute bridges + band good mornings, 2×12",
+      exercises:[
+        {id:'deadlift', name:'Conventional Deadlift', target:'3 × 6–8', type:'load', note:'Stop short of full lockout if your back needs it'},
+        {id:'db-row', name:'One-Arm DB Row', target:'3 × 8–10 /side', type:'load', note:'Brace opposite hand/knee on the bench'},
+        {id:'goblet-squat', name:'Goblet Squat', target:'3 × 10', type:'load', note:'Kettlebell, controlled depth'},
+        {id:'ohp', name:'DB Overhead Press', target:'3 × 8–10', type:'load'},
+        {id:'curls', name:'Curl Bar Curls', target:'3 × 10–12', type:'load'},
+        {id:'back-ext', name:'Back Extension', target:'3 × 12', type:'reps', note:'Or band good morning'},
+        {id:'balance', name:'Single-Leg Balance Reach', target:'3 × 8 /side', type:'reps', note:'Bodyweight — ankle stability'}
+      ]
+    },
+    C: { title:"Full Body / Kettlebell", warmup:"5 min easy bike spin (hold off on jump rope until ankle tolerance is confirmed)",
+      exercises:[
+        {id:'kb-swing', name:'Kettlebell Swing', target:'3 × 12', type:'load', note:'18 or 35lb'},
+        {id:'step-up', name:'Box Step-Up', target:'3 × 8 /leg', type:'load', note:'16" box, controlled tempo — no jumping'},
+        {id:'sa-press', name:'Single-Arm DB Press', target:'3 × 10 /side', type:'load', note:'Flat bench, alternating arms'},
+        {id:'twist', name:'Med Ball Russian Twist', target:'3 × 10 /side', type:'reps'},
+        {id:'plank', name:'Plank', target:'3 × 30–45s', type:'time'},
+        {id:'birddog', name:'Bird-Dog', target:'3 × 10 /side', type:'reps', note:'Or Superman'},
+        {id:'ankle-band', name:'Band Ankle Work', target:'3 × 15 /direction', type:'reps', note:'Dorsiflexion, eversion, inversion — slow and controlled'}
+      ]
+    }
+  };
+  var DAY_ORDER = ['A','B','C'];
+
+  var els = {
+    dayTitle: document.getElementById('day-title'),
+    daySubtitle: document.getElementById('day-subtitle'),
+    statLine: document.getElementById('stat-line'),
+    dayPicker: document.getElementById('day-picker'),
+    warmupText: document.getElementById('warmup-text'),
+    exerciseList: document.getElementById('exercise-list'),
+    historyList: document.getElementById('history-list'),
+    programList: document.getElementById('program-list'),
+    finishBtn: document.getElementById('finish-btn'),
+    finishNote: document.getElementById('finish-note'),
+    toast: document.getElementById('toast'),
+    installBanner: document.getElementById('install-banner'),
+    installBtn: document.getElementById('install-btn'),
+    syncStatus: document.getElementById('sync-status'),
+    syncLabel: document.getElementById('sync-label')
+  };
+
+  function loadSessions(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  function saveSessions(list){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }catch(e){}
+  }
+
+  function setSyncStatus(state, label){
+    // state: 'local' | 'connecting' | 'synced' | 'offline'
+    els.syncStatus.classList.remove('is-synced', 'is-offline');
+    if (state === 'synced') els.syncStatus.classList.add('is-synced');
+    if (state === 'offline') els.syncStatus.classList.add('is-offline');
+    els.syncLabel.textContent = label;
+  }
+
+  // Firestore wiring — active only when firebase-config.js provides real
+  // credentials. Falls back to plain localStorage otherwise.
+  var cloud = { db:null, sessionsRef:null, ready:false };
+
+  var sessions = loadSessions();  // newest first, local cache / fallback
+  var currentDay = 'A';
+  var draft = {};
+
+  function computeDefaultDay(){ return DAY_ORDER[sessions.length % 3]; }
+  function computeWeek(){ return Math.floor(sessions.length / 3) + 1; }
+
+  function lastEntryFor(exId){
+    for (var i=0;i<sessions.length;i++){
+      var s = sessions[i];
+      if (!s.entries) continue;
+      for (var j=0;j<s.entries.length;j++){
+        if (s.entries[j].exercise === exId) return s.entries[j];
+      }
+    }
+    return null;
+  }
+
+  function initDraft(day){
+    draft = {};
+    PROGRAM[day].exercises.forEach(function(ex){
+      draft[ex.id] = [];
+      for (var i=0;i<3;i++) draft[ex.id].push({ a:'', b:'' });
+    });
+  }
+
+  function renderHeader(){
+    var day_ = PROGRAM[currentDay];
+    els.dayTitle.textContent = 'Day ' + currentDay;
+    els.daySubtitle.textContent = day_.title + ' · Week ' + computeWeek();
+    els.statLine.textContent = 'Session ' + (sessions.length + 1);
+    Array.prototype.forEach.call(els.dayPicker.children, function(btn){
+      btn.classList.toggle('active', btn.getAttribute('data-day') === currentDay);
+    });
+  }
+
+  function fmtPrev(entry, type){
+    if (!entry || !entry.sets || !entry.sets.length) return '';
+    var parts = entry.sets.filter(function(s){ return type==='load' ? (s.a || s.b) : s.a; })
+      .map(function(s){
+        if (type==='load') return (s.a||'0') + '×' + (s.b||'0');
+        if (type==='time') return (s.a||'0') + 's';
+        return s.a || '0';
+      });
+    return parts.length ? 'last: ' + parts.join(', ') : '';
+  }
+
+  function renderExercises(){
+    var day_ = PROGRAM[currentDay];
+    els.warmupText.textContent = day_.warmup;
+    els.exerciseList.innerHTML = '';
+
+    day_.exercises.forEach(function(ex){
+      var card = document.createElement('div');
+      card.className = 'exercise';
+
+      var head = document.createElement('div');
+      head.className = 'exercise-head';
+      var h3 = document.createElement('h3'); h3.textContent = ex.name;
+      var tgt = document.createElement('div'); tgt.className='target'; tgt.textContent = ex.target;
+      head.appendChild(h3); head.appendChild(tgt);
+      card.appendChild(head);
+
+      if (ex.note){
+        var note = document.createElement('div'); note.className='note'; note.textContent = ex.note;
+        card.appendChild(note);
+      }
+
+      var prevEntry = lastEntryFor(ex.id);
+      var prevText = fmtPrev(prevEntry, ex.type);
+      if (prevText){
+        var prev = document.createElement('div'); prev.className='prev'; prev.textContent = prevText;
+        card.appendChild(prev);
+      }
+
+      draft[ex.id].forEach(function(setVal, idx){
+        var row = document.createElement('div');
+        row.className = 'set-row type-' + ex.type;
+
+        var label = document.createElement('div');
+        label.className = 'set-label';
+        label.textContent = 'SET ' + (idx+1);
+        row.appendChild(label);
+
+        function makeInput(key, placeholder){
+          var wrap = document.createElement('div');
+          var input = document.createElement('input');
+          input.type = 'number';
+          input.inputMode = 'decimal';
+          input.placeholder = placeholder;
+          input.value = setVal[key];
+          input.addEventListener('input', function(){
+            setVal[key] = input.value;
+            updateRowFilled(row, ex.type, setVal);
+            updateFinishState();
+          });
+          wrap.appendChild(input);
+          return wrap;
+        }
+
+        if (ex.type === 'load'){
+          row.appendChild(makeInput('a', prevEntry && prevEntry.sets[idx] ? String(prevEntry.sets[idx].a||'') : 'lb'));
+          var x = document.createElement('div'); x.className='set-x'; x.textContent='×';
+          row.appendChild(x);
+          row.appendChild(makeInput('b', prevEntry && prevEntry.sets[idx] ? String(prevEntry.sets[idx].b||'') : 'reps'));
+        } else if (ex.type === 'time'){
+          row.appendChild(makeInput('a', 'sec'));
+        } else {
+          row.appendChild(makeInput('a', 'reps'));
+        }
+
+        var check = document.createElement('div');
+        check.className = 'set-check';
+        check.innerHTML = '<svg viewBox="0 0 16 16" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 8.5l3 3 7-7"/></svg>';
+        row.appendChild(check);
+
+        card.appendChild(row);
+        updateRowFilled(row, ex.type, setVal);
+      });
+
+      els.exerciseList.appendChild(card);
+    });
+  }
+
+  function updateRowFilled(row, type, setVal){
+    var filled = type === 'load' ? (setVal.a !== '' && setVal.b !== '') : (setVal.a !== '');
+    row.classList.toggle('filled', !!filled);
+  }
+
+  function anyLogged(){
+    return Object.keys(draft).some(function(id){
+      return draft[id].some(function(s){ return s.a !== '' || s.b !== ''; });
+    });
+  }
+
+  function updateFinishState(){
+    var logged = anyLogged();
+    els.finishBtn.disabled = !logged;
+    els.finishNote.textContent = logged ? 'Saves today’s sets to your log' : 'Log at least one set to finish';
+  }
+
+  function buildEntries(){
+    var day_ = PROGRAM[currentDay];
+    var entries = [];
+    day_.exercises.forEach(function(ex){
+      var sets = draft[ex.id].filter(function(s){ return s.a !== '' || s.b !== ''; })
+        .map(function(s){ return { a: Number(s.a)||0, b: Number(s.b)||0 }; });
+      if (sets.length) entries.push({ exercise: ex.id, name: ex.name, type: ex.type, sets: sets });
+    });
+    return entries;
+  }
+
+  function volumeFor(session){
+    var vol = 0;
+    (session.entries||[]).forEach(function(e){
+      if (e.type === 'load'){
+        e.sets.forEach(function(s){ vol += (s.a||0) * (s.b||0); });
+      }
+    });
+    return vol;
+  }
+
+  function showToast(msg){
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    setTimeout(function(){ els.toast.classList.remove('show'); }, 1800);
+  }
+
+  function finishSession(){
+    var entries = buildEntries();
+    if (!entries.length) return;
+    var session = { date: new Date().toISOString(), day: currentDay, week: computeWeek(), entries: entries };
+
+    if (cloud.ready && cloud.sessionsRef){
+      cloud.addDoc(cloud.sessionsRef, session).catch(function(){
+        // couldn't reach the server right now — keep it locally so nothing's lost;
+        // Firestore's own offline queue usually handles this before it gets here.
+        sessions.unshift(session);
+        saveSessions(sessions);
+        afterFinish();
+      });
+      // optimistic local render; the onSnapshot listener reconciles shortly after
+      sessions.unshift(session);
+      afterFinish();
+    } else {
+      sessions.unshift(session);
+      saveSessions(sessions);
+      afterFinish();
+    }
+  }
+
+  function afterFinish(){
+    showToast('Session saved');
+    currentDay = computeDefaultDay();
+    initDraft(currentDay);
+    renderHeader();
+    renderExercises();
+    renderHistory();
+    updateFinishState();
+  }
+
+  function renderHistory(){
+    els.historyList.innerHTML = '';
+    if (!sessions.length){
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'No sessions logged yet — finish today’s workout and it’ll show up here.';
+      els.historyList.appendChild(empty);
+      return;
+    }
+    sessions.forEach(function(s){
+      var card = document.createElement('div');
+      card.className = 'session-card';
+
+      var summary = document.createElement('div');
+      summary.className = 'session-summary';
+
+      var chip = document.createElement('div');
+      chip.className = 'day-chip';
+      chip.textContent = s.day;
+      summary.appendChild(chip);
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      var d = new Date(s.date);
+      var dateStr = isNaN(d) ? '' : d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+      var dateEl = document.createElement('div'); dateEl.className='date'; dateEl.textContent = dateStr;
+      var subEl = document.createElement('div'); subEl.className='sub';
+      subEl.textContent = (PROGRAM[s.day]?PROGRAM[s.day].title:'') + ' · Week ' + s.week + ' · ' + s.entries.length + ' exercises';
+      meta.appendChild(dateEl); meta.appendChild(subEl);
+      summary.appendChild(meta);
+
+      var vol = volumeFor(s);
+      var volEl = document.createElement('div');
+      volEl.className = 'vol mono';
+      volEl.innerHTML = (vol ? vol.toLocaleString() : '—') + '<span>VOL LB</span>';
+      summary.appendChild(volEl);
+
+      summary.addEventListener('click', function(){ card.classList.toggle('open'); });
+      card.appendChild(summary);
+
+      var detail = document.createElement('div');
+      detail.className = 'session-detail';
+      s.entries.forEach(function(e){
+        var row = document.createElement('div'); row.className='entry';
+        var name = document.createElement('div'); name.className='ex-name'; name.textContent = e.name || e.exercise;
+        var setsStr = e.sets.map(function(st){
+          if (e.type==='load') return st.a + '×' + st.b;
+          if (e.type==='time') return st.a + 's';
+          return st.a;
+        }).join(', ');
+        var setsEl = document.createElement('div'); setsEl.className='ex-sets mono'; setsEl.textContent = setsStr;
+        row.appendChild(name); row.appendChild(setsEl);
+        detail.appendChild(row);
+      });
+      card.appendChild(detail);
+
+      els.historyList.appendChild(card);
+    });
+  }
+
+  function renderProgram(){
+    els.programList.innerHTML = '';
+    DAY_ORDER.forEach(function(day){
+      var day_ = PROGRAM[day];
+      var block = document.createElement('div');
+      block.className = 'prog-day';
+      var h2 = document.createElement('h2'); h2.textContent = 'Day ' + day + ' — ' + day_.title;
+      var sub = document.createElement('div'); sub.className='sub'; sub.textContent = day_.warmup;
+      block.appendChild(h2); block.appendChild(sub);
+
+      var table = document.createElement('div'); table.className='prog-table';
+      day_.exercises.forEach(function(ex){
+        var row = document.createElement('div'); row.className='prog-row';
+        var left = document.createElement('div');
+        var pname = document.createElement('div'); pname.className='pname'; pname.textContent = ex.name;
+        left.appendChild(pname);
+        if (ex.note){
+          var pnote = document.createElement('span'); pnote.className='pnote'; pnote.textContent = ex.note;
+          left.appendChild(pnote);
+        }
+        var right = document.createElement('div'); right.className='ptarget'; right.textContent = ex.target;
+        row.appendChild(left); row.appendChild(right);
+        table.appendChild(row);
+      });
+      block.appendChild(table);
+      els.programList.appendChild(block);
+    });
+  }
+
+  document.querySelectorAll('nav.tabbar button').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('nav.tabbar button').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      var view = btn.getAttribute('data-view');
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      document.getElementById('view-' + view).classList.add('active');
+      document.getElementById('finish-bar').style.display = (view === 'today') ? '' : 'none';
+    });
+  });
+
+  Array.prototype.forEach.call(els.dayPicker.children, function(btn){
+    btn.addEventListener('click', function(){
+      currentDay = btn.getAttribute('data-day');
+      initDraft(currentDay);
+      renderHeader();
+      renderExercises();
+      updateFinishState();
+    });
+  });
+
+  els.finishBtn.addEventListener('click', finishSession);
+
+  // ---- Install prompt (Android/desktop Chrome) ----
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredPrompt = e;
+    els.installBanner.classList.add('show');
+  });
+  els.installBtn.addEventListener('click', function(){
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(function(){
+      deferredPrompt = null;
+      els.installBanner.classList.remove('show');
+    });
+  });
+  window.addEventListener('appinstalled', function(){
+    els.installBanner.classList.remove('show');
+  });
+
+  // ---- Service worker ----
+  if ('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('./sw.js').catch(function(){});
+    });
+  }
+
+  // ---- Firestore sync (optional — only if firebase-config.js is filled in) ----
+  function initCloud(){
+    var config = window.GARAGE_LOG_FIREBASE_CONFIG;
+    if (!config || !config.apiKey){
+      setSyncStatus('local', 'Local only');
+      return;
+    }
+
+    setSyncStatus('connecting', 'Connecting…');
+
+    Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js'),
+      import('https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js')
+    ]).then(function(mods){
+      var appMod = mods[0], authMod = mods[1], dbMod = mods[2];
+      var app = appMod.initializeApp(config);
+      var auth = authMod.getAuth(app);
+      var db = dbMod.getFirestore(app);
+
+      dbMod.enableIndexedDbPersistence(db).catch(function(){ /* multiple tabs or unsupported — fine, just no offline cache */ });
+
+      var code = window.GARAGE_LOG_SYNC_CODE || 'garage-log';
+      var sessionsRef = dbMod.collection(db, 'households', code, 'sessions');
+      cloud.db = db;
+      cloud.sessionsRef = sessionsRef;
+      cloud.addDoc = function(ref, data){ return dbMod.addDoc(ref, data); };
+
+      authMod.onAuthStateChanged(auth, function(user){
+        if (!user){
+          authMod.signInAnonymously(auth).catch(function(){ setSyncStatus('offline', 'Sign-in failed'); });
+          return;
+        }
+        cloud.ready = true;
+        var q = dbMod.query(sessionsRef, dbMod.orderBy('date', 'desc'), dbMod.limit(80));
+        dbMod.onSnapshot(q, function(snap){
+          sessions = snap.docs.map(function(d){ return d.data(); });
+          setSyncStatus('synced', 'Synced');
+          renderHeader();
+          renderExercises();
+          renderHistory();
+          updateFinishState();
+        }, function(){
+          setSyncStatus('offline', 'Offline — will sync');
+        });
+      });
+    }).catch(function(){
+      setSyncStatus('offline', 'Sync unavailable');
+    });
+  }
+
+  // ---- Init ----
+  currentDay = computeDefaultDay();
+  initDraft(currentDay);
+  renderHeader();
+  renderExercises();
+  renderHistory();
+  renderProgram();
+  updateFinishState();
+  initCloud();
+})();
+</script>
+</body>
+</html>
