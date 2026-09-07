@@ -1644,8 +1644,21 @@
         dbMod.onSnapshot(householdRef, function(snap){
           var data = snap.data();
           var cloudProfiles = (data && data.profiles) || [];
-          if (cloudProfiles.length){
-            profiles = cloudProfiles;
+          var localProfiles = profiles || [];
+          // Union cloud + local by id so a profile created on one device while the
+          // other was offline/out of sync never gets silently dropped — it just
+          // merges in, and the combined list gets pushed back up so every device
+          // converges on the same set instead of one overwriting the other.
+          var merged = cloudProfiles.slice();
+          var addedLocalOnly = false;
+          localProfiles.forEach(function(lp){
+            if (!merged.some(function(cp){ return cp.id === lp.id; })){
+              merged.push(lp);
+              addedLocalOnly = true;
+            }
+          });
+          if (merged.length){
+            profiles = merged;
             saveProfiles(profiles);
             if (!activeProfileId || !profiles.some(function(p){ return p.id === activeProfileId; })){
               activeProfileId = profiles[0].id;
@@ -1653,9 +1666,10 @@
               historyFilter = activeProfileId;
               currentDay = computeDefaultDay();
             }
-          } else if (profiles.length){
-            // We have local profiles but the household doc doesn't yet — push ours up.
-            cloud.setProfiles(profiles).catch(function(){});
+            if (addedLocalOnly){
+              // Cloud was missing one or more of our local profiles — push the merged list up.
+              cloud.setProfiles(merged).catch(function(){});
+            }
           }
           reconcileOrphanSessions();
           renderAll();
