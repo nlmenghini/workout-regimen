@@ -1,6 +1,6 @@
 {
-  "name": "Garage Log",
-  "short_name": "Garage Log",
+  "name": "Workout Regimen",
+  "short_name": "Workout",
   "description": "Garage gym workout tracker — log sets, track history, and follow your strength program offline.",
   "start_url": "./index.html",
   "scope": "./",

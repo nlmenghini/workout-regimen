@@ -1,4 +1,4 @@
-// Garage Log — Firebase config
+// Workout Regimen — Firebase config
 //
 // 1. In the Firebase console, open (or create) your project.
 // 2. Build > Firestore Database > Create database (production mode is fine — the

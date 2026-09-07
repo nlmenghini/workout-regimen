@@ -1,4 +1,4 @@
-# Garage Log — PWA
+# Workout Regimen — PWA
 
 An installable, offline-capable workout tracker for the garage strength program (Day A/B/C), matching `garage-strength-program.md` in your "Working out" project. Ships in two modes:
 
@@ -29,17 +29,22 @@ You've already got a Firebase account, so:
    rules_version = '2';
    service cloud.firestore {
      match /databases/{database}/documents {
-       match /households/{code}/sessions/{sessionId} {
+       match /households/{code} {
          allow read, write: if request.auth != null;
+         match /sessions/{sessionId} {
+           allow read, write: if request.auth != null;
+         }
        }
      }
    }
    ```
 
+   (If you set up Firebase before profiles existed, you'll need to update your rules to the block above — the household document itself now stores the shared profile list, in addition to the `sessions` subcollection.)
+
    This means: anyone signed in (anonymous sign-in counts) can read/write session data. It does **not** check that they know your specific `code` — so treat `GARAGE_LOG_SYNC_CODE` and your Firebase project like a shared secret (obscure, not published anywhere), not a real access-controlled login. That's a reasonable tradeoff for a personal fitness log; if you ever want it properly locked to just you, the next step up is switching Anonymous auth for Google/email sign-in and adding `request.auth.uid == <your uid>` to the rule — say the word if you want that wired up instead.
 
 8. Commit and push `firebase-config.js` with your real values, redeploy (GitHub Pages picks it up automatically on push). Firebase config values are meant to be public in client apps (they're not secrets — your security rules are what actually protects the data), so it's fine for this file to be in the repo.
-9. Open the app on a couple of devices — the little dot next to "Garage Log" in the header shows the sync state (Local only / Connecting… / Synced / Offline — will sync).
+9. Open the app on a couple of devices — the little dot below "Workout Regimen" in the header shows the sync state (Local only / Connecting… / Synced / Offline — will sync).
 
 ## Install it on your phone
 
@@ -48,6 +53,12 @@ Once it's live at your GitHub Pages URL:
 - **iPhone (Safari):** open the URL, tap the Share icon, then "Add to Home Screen". iOS doesn't support the automatic install prompt, so this manual step is how it becomes a real installed PWA there.
 
 After installing, it opens full-screen with its own icon. The service worker (`sw.js`) caches the app shell so it keeps working offline; if Firebase sync is on, Firestore's own offline cache keeps your logged sets available and queues writes until you're back online.
+
+## Profiles
+
+Tap the pill next to the sync status (top right) to switch who's logging a workout, or to add/rename/delete profiles. Each profile has its own day rotation, week/session count, and history — logging in as one profile never touches another's numbers. History defaults to whichever profile is active on that device, with chips to filter to "All" or one specific person, plus a "Compare" toggle for a side-by-side stats summary (sessions, total volume, last session).
+
+Which profile is "active" is a per-device setting (so your phone can just always open as you) — it's stored locally and isn't synced. The list of profiles itself, and everyone's logged sessions, *do* sync through Firestore when it's configured, so anyone sharing the sync code sees the same people and can view (or compare against) each other's history from their own device.
 
 ## Updating the program later
 
