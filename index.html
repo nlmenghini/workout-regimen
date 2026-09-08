@@ -114,7 +114,7 @@
     align-items:baseline;
     margin-bottom:6px;
   }
-  .eyebrow .stat{ color:var(--accent); font-weight:600; }
+  .eyebrow .stat{ color:var(--accent); font-weight:600; font-variant-numeric:tabular-nums; }
   .sync{
     display:flex; align-items:center; gap:5px;
     font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.14em; text-transform:uppercase;
@@ -181,6 +181,15 @@
   .exercise-head h3{ font-size:17px; font-weight:600; }
   .exercise-head .target{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-soft); white-space:nowrap; padding-top:2px; }
   .exercise .note{ font-size:12px; color:var(--ink-soft); margin:2px 0 10px; }
+  .user-note-field{ margin-top:10px; }
+  .user-note-field label{
+    display:block; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px;
+  }
+  .user-note-field textarea{
+    width:100%; min-height:44px; resize:vertical; border:1px solid var(--line); background:var(--paper);
+    color:var(--ink); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13px; line-height:1.4;
+  }
   .skipped-note{
     font-size:12.5px; line-height:1.5; color:var(--ink-soft); background:var(--paper-raised);
     border:1px solid var(--accent); border-left-width:3px; border-radius:8px; padding:9px 11px; margin:2px 0 12px;
@@ -266,11 +275,6 @@
   .congrats{ text-align:center; padding:20px 6px 6px; }
   .congrats h2{ font-size:24px; margin-bottom:10px; }
   .congrats p{ font-size:14px; line-height:1.6; color:var(--ink-soft); margin:0 auto; max-width:340px; }
-  .congrats .stretch-list{
-    margin:16px auto 0; max-width:340px; text-align:left; font-size:13px; color:var(--ink-soft);
-    background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; line-height:1.7;
-  }
-  .congrats .stretch-list strong{ color:var(--ink); }
 
   .finish-bar{ padding:12px 16px calc(4px + env(safe-area-inset-bottom)); }
   .finish-btn{
@@ -311,6 +315,27 @@
   .session-detail .entry{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px dashed var(--line); }
   .session-detail .entry .ex-name{ color:var(--ink); }
   .session-detail .entry .ex-sets{ font-family:'IBM Plex Mono', monospace; color:var(--ink-soft); text-align:right; }
+  .session-detail .entry-note{ padding:0 0 6px; font-size:11.5px; font-style:italic; color:var(--ink-soft); }
+  .progress-card{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-bottom:14px;
+  }
+  .progress-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .progress-card-head h3{ font-size:14px; font-weight:600; text-transform:none; letter-spacing:0; }
+  .progress-select{
+    border:1px solid var(--line); background:var(--paper); color:var(--ink); border-radius:8px;
+    padding:6px 8px; font-family:'IBM Plex Sans', sans-serif; font-size:12.5px; max-width:52%;
+  }
+  .progress-chart-empty{ font-size:12.5px; color:var(--ink-soft); padding:18px 0; text-align:center; }
+  .progress-chart svg{ display:block; width:100%; height:auto; overflow:visible; }
+  .progress-chart .pc-line{ fill:none; stroke:var(--accent); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .progress-chart .pc-dot{ fill:var(--paper-raised); stroke:var(--accent); stroke-width:2; }
+  .progress-chart .pc-dot:hover, .progress-chart .pc-dot:focus{ fill:var(--accent); }
+  .progress-chart .pc-grid{ stroke:var(--line); stroke-width:1; }
+  .progress-chart .pc-axis-label{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; fill:var(--ink-soft); }
+  .progress-summary{ margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); text-align:right; }
+  .progress-summary .up{ color:var(--accent-2); }
+  .progress-summary .down{ color:var(--danger); }
   .delete-session{
     display:block; width:100%; text-align:center; background:none; border:none;
     border-top:1px dashed var(--line); margin-top:8px; padding:12px 0 2px;
@@ -431,6 +456,13 @@
     </section>
 
     <section class="view" id="view-history">
+      <div class="progress-card" id="progress-card">
+        <div class="progress-card-head">
+          <h3>Progress</h3>
+          <select class="progress-select" id="progress-select"></select>
+        </div>
+        <div class="progress-chart" id="progress-chart"></div>
+      </div>
       <div class="filter-row" id="filter-row"></div>
       <div class="compare-card" id="compare-card" hidden></div>
       <div id="history-list"></div>
@@ -531,6 +563,13 @@
   };
   var DAY_ORDER = ['Mon', 'Wed', 'Fri'];
 
+  var COOLDOWN = [
+    { id:'calf-stretch', name:'Standing Calf Stretch', target:'30s each side' },
+    { id:'hamstring-stretch', name:'Seated Hamstring Stretch', target:'30s each side' },
+    { id:'hip-flexor-stretch', name:'Kneeling Hip Flexor Stretch', target:'30s each side' },
+    { id:'childs-pose', name:'Child’s Pose', target:'45s' }
+  ];
+
   var els = {
     dayTitle: document.getElementById('day-title'),
     daySubtitle: document.getElementById('day-subtitle'),
@@ -550,7 +589,9 @@
     profileModalOverlay: document.getElementById('profile-modal-overlay'),
     profileModalCard: document.getElementById('profile-modal-card'),
     filterRow: document.getElementById('filter-row'),
-    compareCard: document.getElementById('compare-card')
+    compareCard: document.getElementById('compare-card'),
+    progressSelect: document.getElementById('progress-select'),
+    progressChart: document.getElementById('progress-chart')
   };
 
   function loadSessions(){
@@ -607,6 +648,7 @@
   var historyFilter = activeProfileId || 'all';  // 'all' or a profile id
   var showCompare = false;
   var profileModalOpen = false;
+  var progressMetric = '__volume__';  // '__volume__' or an exercise id
 
   function findProfile(id){ return profiles.filter(function(p){ return p.id === id; })[0] || null; }
   function activeProfile(){ return findProfile(activeProfileId); }
@@ -771,7 +813,47 @@
   // stage: 'idle' (choosing/previewing a day) | 'running' (stepping through
   // warm-up items and exercises one at a time) | 'done' (congrats screen,
   // not yet written to history).
-  var flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null };
+  var flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null, cooldownDraft:null };
+
+  var workoutTimer = { startedAt: null, intervalId: null };
+
+  function formatElapsed(ms){
+    var totalSec = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    function pad(n){ return n < 10 ? '0' + n : '' + n; }
+    return (h > 0 ? (h + ':' + pad(m)) : m) + ':' + pad(s);
+  }
+
+  function formatDurationLabel(sec){
+    var totalMin = Math.round(sec / 60);
+    if (totalMin < 1) return '<1 min';
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    return h > 0 ? (h + 'h ' + m + 'm') : (m + ' min');
+  }
+
+  function updateStatLine(){
+    if (flow.stage !== 'idle' && workoutTimer.startedAt){
+      els.statLine.textContent = formatElapsed(Date.now() - workoutTimer.startedAt);
+    } else {
+      els.statLine.textContent = 'Session ' + (activeSessions().length + 1);
+    }
+  }
+
+  function startWorkoutTimer(){
+    workoutTimer.startedAt = Date.now();
+    if (workoutTimer.intervalId) clearInterval(workoutTimer.intervalId);
+    workoutTimer.intervalId = setInterval(updateStatLine, 1000);
+    updateStatLine();
+  }
+
+  function stopWorkoutTimer(){
+    if (workoutTimer.intervalId) clearInterval(workoutTimer.intervalId);
+    workoutTimer.intervalId = null;
+    workoutTimer.startedAt = null;
+  }
 
   function computeDefaultDay(){ return DAY_ORDER[activeSessions().length % 3]; }
   function computeWeek(){ return Math.floor(activeSessions().length / 3) + 1; }
@@ -787,7 +869,9 @@
 
   function cloneDraft(step, draft){
     if (step.kind === 'warmup-group') return draft.map(function(v){ return { done: !!v.done }; });
-    return draft.map(function(v){ return { a:v.a, b:v.b }; });
+    var copy = draft.map(function(v){ return { a:v.a, b:v.b }; });
+    copy.note = draft.note || '';
+    return copy;
   }
 
   function initStepDraft(step, existing){
@@ -797,6 +881,7 @@
     var count = 3;
     var arr = [];
     for (var i=0;i<count;i++) arr.push(freshSetVal());
+    arr.note = (existing && existing.note) || '';
     return arr;
   }
 
@@ -827,6 +912,7 @@
     flow.warmup = [];
     flow.entries = [];
     flow.stepDraft = initStepDraft(flow.steps[0], null);
+    startWorkoutTimer();
     renderAll();
   }
 
@@ -846,13 +932,17 @@
       } else {
         var sets = result.filter(function(s){ return s.a !== '' || s.b !== ''; })
           .map(function(s){ return { a: Number(s.a)||0, b: Number(s.b)||0 }; });
-        entries.push({ exercise: step.ex.id, name: step.ex.name, type: step.ex.type, sets: sets });
+        var entry = { exercise: step.ex.id, name: step.ex.name, type: step.ex.type, sets: sets };
+        var noteText = (result.note || '').trim();
+        if (noteText) entry.note = noteText;
+        entries.push(entry);
       }
     });
     flow.warmup = warmup;
     flow.entries = entries;
     flow.stage = 'done';
     flow.stepDraft = null;
+    if (!flow.cooldownDraft) flow.cooldownDraft = COOLDOWN.map(function(){ return { done:false }; });
   }
 
   function saveCurrentStep(){
@@ -905,7 +995,8 @@
 
   function cancelFlow(){
     if (!window.confirm('Discard this workout in progress? Nothing logged so far will be saved.')) return;
-    flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null };
+    stopWorkoutTimer();
+    flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null, cooldownDraft:null };
     renderAll();
   }
 
@@ -924,6 +1015,12 @@
 
   function logWorkout(){
     var ap = activeProfile();
+    var cooldown = COOLDOWN.map(function(item, idx){
+      var v = flow.cooldownDraft ? flow.cooldownDraft[idx] : null;
+      return { id: item.id, name: item.name, done: !!(v && v.done) };
+    });
+    var durationSec = workoutTimer.startedAt ? Math.round((Date.now() - workoutTimer.startedAt) / 1000) : null;
+    stopWorkoutTimer();
     var session = {
       date: new Date().toISOString(),
       day: flow.day,
@@ -931,14 +1028,16 @@
       profileId: activeProfileId,
       profileName: ap ? ap.name : 'Unknown',
       warmup: flow.warmup,
-      entries: flow.entries
+      cooldown: cooldown,
+      entries: flow.entries,
+      durationSec: durationSec
     };
 
     persistSession(session);
 
     showToast('Workout logged');
     currentDay = computeDefaultDay();
-    flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null };
+    flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null, cooldownDraft:null };
     renderAll();
   }
 
@@ -1048,6 +1147,26 @@
     return row;
   }
 
+  function buildNoteField(draft, onChange){
+    var wrap = document.createElement('div');
+    wrap.className = 'user-note-field';
+
+    var label = document.createElement('label');
+    label.textContent = 'Notes';
+    wrap.appendChild(label);
+
+    var textarea = document.createElement('textarea');
+    textarea.placeholder = 'How did this feel? Anything to remember next time…';
+    textarea.value = draft.note || '';
+    textarea.addEventListener('input', function(){
+      draft.note = textarea.value;
+      onChange();
+    });
+    wrap.appendChild(textarea);
+
+    return wrap;
+  }
+
   function buildSetRow(type, label, setVal, onChange){
     var row = document.createElement('div');
     row.className = 'set-row type-' + type;
@@ -1106,7 +1225,7 @@
   }
 
   function renderHeader(){
-    els.statLine.textContent = 'Session ' + (activeSessions().length + 1);
+    updateStatLine();
     var ap = activeProfile();
     els.profilePill.textContent = (ap ? ap.name : 'Set up profile') + ' ▾';
 
@@ -1264,6 +1383,7 @@
       flow.stepDraft.forEach(function(setVal, idx){
         card.appendChild(buildSetRow(step.ex.type, 'SET ' + (idx+1), setVal, onDraftChange));
       });
+      card.appendChild(buildNoteField(flow.stepDraft, onDraftChange));
 
       els.flowRoot.appendChild(card);
     }
@@ -1306,17 +1426,25 @@
     p.textContent = 'Nice work finishing today’s session. Give your knees, ankles and lower back a few minutes of stretching before you head out.';
     card.appendChild(h2); card.appendChild(p);
 
-    var list = document.createElement('div');
-    list.className = 'stretch-list';
-    list.innerHTML =
-      '<strong>Suggested cool-down</strong><br>' +
-      'Standing calf stretch · 30s each side<br>' +
-      'Seated hamstring stretch · 30s each side<br>' +
-      'Kneeling hip flexor stretch · 30s each side<br>' +
-      'Child’s pose for the lower back · 45s';
-    card.appendChild(list);
-
     els.flowRoot.appendChild(card);
+
+    if (!flow.cooldownDraft) flow.cooldownDraft = COOLDOWN.map(function(){ return { done:false }; });
+
+    COOLDOWN.forEach(function(item, idx){
+      var itemCard = document.createElement('div');
+      itemCard.className = 'exercise';
+
+      var head = document.createElement('div');
+      head.className = 'exercise-head';
+      var h3 = document.createElement('h3'); h3.textContent = item.name;
+      var tgt = document.createElement('div'); tgt.className='target'; tgt.textContent = item.target || '';
+      head.appendChild(h3); head.appendChild(tgt);
+      itemCard.appendChild(head);
+
+      itemCard.appendChild(buildWarmupToggle(flow.cooldownDraft[idx], onDraftChange));
+
+      els.flowRoot.appendChild(itemCard);
+    });
 
     var back = document.createElement('button');
     back.className = 'back-link';
@@ -1409,9 +1537,152 @@
     });
   }
 
+  function progressExerciseOptions(){
+    var seen = {};
+    var list = [];
+    DAY_ORDER.forEach(function(day){
+      (PROGRAM[day].exercises || []).forEach(function(ex){
+        if (seen[ex.id]) return;
+        seen[ex.id] = true;
+        list.push({ id: ex.id, name: ex.name, type: ex.type });
+      });
+    });
+    return list;
+  }
+
+  function progressSourceSessions(){
+    var list = historyFilter === 'all' ? sessions : sessionsForProfile(historyFilter);
+    return list.slice().reverse(); // oldest first, for a left-to-right timeline
+  }
+
+  function metricValueForSession(session, metric){
+    if (metric === '__volume__'){
+      if (session.skippedDay || !session.entries || !session.entries.length) return null;
+      return volumeFor(session);
+    }
+    var entry = (session.entries || []).filter(function(e){ return e.exercise === metric && !e.skipped; })[0];
+    if (!entry || !entry.sets || !entry.sets.length) return null;
+    return entry.sets.reduce(function(max, s){ return Math.max(max, s.a || 0); }, 0);
+  }
+
+  function renderProgressChart(){
+    var options = progressExerciseOptions();
+    var validIds = ['__volume__'].concat(options.map(function(o){ return o.id; }));
+    if (validIds.indexOf(progressMetric) === -1) progressMetric = '__volume__';
+
+    if (els.progressSelect.options.length !== options.length + 1){
+      els.progressSelect.innerHTML = '';
+      var volOpt = document.createElement('option');
+      volOpt.value = '__volume__';
+      volOpt.textContent = 'Total Volume';
+      els.progressSelect.appendChild(volOpt);
+      options.forEach(function(o){
+        var opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = o.name;
+        els.progressSelect.appendChild(opt);
+      });
+    }
+    els.progressSelect.value = progressMetric;
+
+    var meta = progressMetric === '__volume__' ? null : options.filter(function(o){ return o.id === progressMetric; })[0];
+    var unit = !meta ? 'lb vol' : (meta.type === 'time' ? 'sec' : (meta.type === 'reps' ? 'reps' : 'lb'));
+
+    var points = [];
+    progressSourceSessions().forEach(function(s){
+      var v = metricValueForSession(s, progressMetric);
+      if (v === null || v === undefined) return;
+      points.push({ date: new Date(s.date), value: v });
+    });
+
+    els.progressChart.innerHTML = '';
+    if (points.length < 2){
+      var empty = document.createElement('div');
+      empty.className = 'progress-chart-empty';
+      empty.textContent = points.length
+        ? 'Log this again to start seeing a trend.'
+        : 'Log a couple of sessions to see your trend here.';
+      els.progressChart.appendChild(empty);
+      return;
+    }
+
+    var W = 300, H = 120, padL = 32, padR = 10, padT = 14, padB = 20;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var maxV = Math.max.apply(null, points.map(function(p){ return p.value; }));
+    var minV = Math.min.apply(null, points.map(function(p){ return p.value; }));
+    if (maxV === minV){ maxV = maxV + 1; minV = Math.max(0, minV - 1); }
+    var range = maxV - minV;
+
+    function xAt(i){ return padL + (i / (points.length - 1)) * innerW; }
+    function yAt(v){ return padT + innerH - ((v - minV) / range) * innerH; }
+
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', (meta ? meta.name : 'Total volume') + ' trend over ' + points.length + ' sessions');
+
+    [minV, maxV].forEach(function(v){
+      var y = yAt(v);
+      var line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('class', 'pc-grid');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+      line.setAttribute('y1', y); line.setAttribute('y2', y);
+      svg.appendChild(line);
+
+      var label = document.createElementNS(svgNS, 'text');
+      label.setAttribute('class', 'pc-axis-label');
+      label.setAttribute('x', 0); label.setAttribute('y', y + 3);
+      label.textContent = Math.round(v);
+      svg.appendChild(label);
+    });
+
+    var d = points.map(function(p, i){ return (i === 0 ? 'M' : 'L') + xAt(i).toFixed(1) + ',' + yAt(p.value).toFixed(1); }).join(' ');
+    var linePath = document.createElementNS(svgNS, 'path');
+    linePath.setAttribute('class', 'pc-line');
+    linePath.setAttribute('d', d);
+    svg.appendChild(linePath);
+
+    points.forEach(function(p, i){
+      var c = document.createElementNS(svgNS, 'circle');
+      c.setAttribute('class', 'pc-dot');
+      c.setAttribute('cx', xAt(i).toFixed(1));
+      c.setAttribute('cy', yAt(p.value).toFixed(1));
+      c.setAttribute('r', i === points.length - 1 ? 4 : 3);
+      var dateStr = isNaN(p.date) ? '' : p.date.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+      var title = document.createElementNS(svgNS, 'title');
+      title.textContent = dateStr + ': ' + p.value.toLocaleString() + ' ' + unit;
+      c.appendChild(title);
+      svg.appendChild(c);
+    });
+
+    var firstLabel = document.createElementNS(svgNS, 'text');
+    firstLabel.setAttribute('class', 'pc-axis-label');
+    firstLabel.setAttribute('x', padL); firstLabel.setAttribute('y', H - 4);
+    firstLabel.textContent = isNaN(points[0].date) ? '' : points[0].date.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+    svg.appendChild(firstLabel);
+
+    var lastLabel = document.createElementNS(svgNS, 'text');
+    lastLabel.setAttribute('class', 'pc-axis-label');
+    lastLabel.setAttribute('x', W - padR); lastLabel.setAttribute('y', H - 4); lastLabel.setAttribute('text-anchor', 'end');
+    lastLabel.textContent = isNaN(points[points.length - 1].date) ? '' : points[points.length - 1].date.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+    svg.appendChild(lastLabel);
+
+    els.progressChart.appendChild(svg);
+
+    var first = points[0].value, last = points[points.length - 1].value;
+    var diff = last - first;
+    var summary = document.createElement('div');
+    summary.className = 'progress-summary';
+    var arrowSpan = diff === 0 ? '—' : ('<span class="' + (diff > 0 ? 'up' : 'down') + '">' + (diff > 0 ? '▲' : '▼') + ' ' + Math.abs(diff).toLocaleString() + ' ' + unit + '</span>');
+    summary.innerHTML = last.toLocaleString() + ' ' + unit + ' now · ' + arrowSpan + ' since first logged';
+    els.progressChart.appendChild(summary);
+  }
+
   function renderHistory(){
     renderFilterRow();
     renderCompareCard();
+    renderProgressChart();
 
     els.historyList.innerHTML = '';
     var list = historyFilter === 'all' ? sessions : sessionsForProfile(historyFilter);
@@ -1447,6 +1718,7 @@
       var subParts = s.skippedDay
         ? ['Skipped — ' + s.reason]
         : [dayTitle, 'Week ' + s.week, (s.entries||[]).length + ' exercises'];
+      if (!s.skippedDay && s.durationSec) subParts.push(formatDurationLabel(s.durationSec));
       if (historyFilter === 'all' && profiles.length > 1 && s.profileName) subParts.unshift(s.profileName);
       subEl.textContent = subParts.join(' · ');
       meta.appendChild(dateEl); meta.appendChild(subEl);
@@ -1506,6 +1778,27 @@
             }).join(', ');
           }
           row.appendChild(name); row.appendChild(setsEl);
+          detail.appendChild(row);
+
+          if (e.note){
+            var noteRow = document.createElement('div');
+            noteRow.className = 'entry-note';
+            noteRow.textContent = '“' + e.note + '”';
+            detail.appendChild(noteRow);
+          }
+        });
+      }
+
+      if (s.cooldown && s.cooldown.length){
+        var cdHead = document.createElement('div'); cdHead.className='subhead'; cdHead.textContent='Cool-down';
+        detail.appendChild(cdHead);
+        s.cooldown.forEach(function(c){
+          var row = document.createElement('div'); row.className='entry';
+          var name = document.createElement('div'); name.className='ex-name'; name.textContent = c.name;
+          var val = document.createElement('div');
+          val.className = c.done ? 'ex-sets mono' : 'ex-sets skipped-entry';
+          val.textContent = c.done ? 'Done' : 'Not done';
+          row.appendChild(name); row.appendChild(val);
           detail.appendChild(row);
         });
       }
@@ -1569,6 +1862,11 @@
     }
     else if (flow.stage === 'running') saveCurrentStep();
     else logWorkout();
+  });
+
+  els.progressSelect.addEventListener('change', function(){
+    progressMetric = els.progressSelect.value;
+    renderProgressChart();
   });
 
   els.profilePill.addEventListener('click', openProfileModal);
