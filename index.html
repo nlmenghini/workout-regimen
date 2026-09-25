@@ -181,6 +181,10 @@
   .exercise-head h3{ font-size:17px; font-weight:600; }
   .exercise-head .target{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-soft); white-space:nowrap; padding-top:2px; }
   .exercise .note{ font-size:12px; color:var(--ink-soft); margin:2px 0 10px; }
+  .last-time{ font-size:12px; color:var(--steel); background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin:0 0 10px; line-height:1.45; }
+  .last-time .lt-label{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-soft); }
+  .last-time .lt-sets{ font-family:'IBM Plex Mono', monospace; font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink); }
+  .last-time .lt-note{ display:block; color:var(--ink-soft); font-style:italic; margin-top:2px; }
   .user-note-field{ margin-top:10px; }
   .user-note-field label{
     display:block; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em;
@@ -1469,7 +1473,62 @@
     return wrap;
   }
 
-  function buildSetRow(type, label, setVal, onChange){
+  // ---- Last time ----
+  // Most recent logged sets for an exercise, for the active profile only.
+  // `sessions` is newest-first and includes workouts still waiting to sync.
+  function lastPerformance(exId){
+    var mine = activeSessions();
+    var skippedSince = null;
+    for (var i = 0; i < mine.length; i++){
+      var s = mine[i];
+      if (s.skippedDay || !s.entries) continue;
+      for (var j = 0; j < s.entries.length; j++){
+        var e = s.entries[j];
+        if (e.exercise !== exId) continue;
+        if (e.skipped){ if (!skippedSince) skippedSince = { date: s.date, reason: e.reason }; break; }
+        if (e.sets && e.sets.length) return { date: s.date, entry: e, skippedSince: skippedSince };
+        break;
+      }
+    }
+    return skippedSince ? { skippedSince: skippedSince } : null;
+  }
+
+  function fmtSet(type, st){
+    if (type === 'load') return (Number(st.a) ? st.a : 'BW') + '×' + st.b;
+    if (type === 'time') return st.a + 's';
+    return String(st.a);
+  }
+
+  function fmtShortDate(iso){
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+  }
+
+  function buildLastTime(ex, last){
+    var box = document.createElement('div');
+    box.className = 'last-time';
+    var label = document.createElement('span'); label.className = 'lt-label';
+    if (last.entry){
+      label.textContent = 'Last time · ' + fmtShortDate(last.date) + ' — ';
+      box.appendChild(label);
+      var sets = document.createElement('span'); sets.className = 'lt-sets';
+      sets.textContent = last.entry.sets.map(function(st){ return fmtSet(ex.type, st); }).join(', ');
+      box.appendChild(sets);
+      if (last.entry.note){
+        var n = document.createElement('span'); n.className = 'lt-note'; n.textContent = '“' + last.entry.note + '”';
+        box.appendChild(n);
+      }
+    }
+    if (last.skippedSince){
+      var sk = document.createElement('span'); sk.className = 'lt-note';
+      sk.textContent = 'Skipped ' + fmtShortDate(last.skippedSince.date) + (last.skippedSince.reason ? ' — ' + last.skippedSince.reason : '');
+      if (!last.entry){ label.textContent = 'Last time'; box.appendChild(label); }
+      box.appendChild(sk);
+    }
+    return box;
+  }
+
+  function buildSetRow(type, label, setVal, onChange, hint){
     var row = document.createElement('div');
     row.className = 'set-row type-' + type;
 
@@ -1483,7 +1542,7 @@
       var input = document.createElement('input');
       input.type = 'number';
       input.inputMode = 'decimal';
-      input.placeholder = '0';
+      input.placeholder = (hint && hint[key] !== undefined && hint[key] !== '') ? String(hint[key]) : '0';
       input.value = setVal[key];
       input.addEventListener('input', function(){
         setVal[key] = input.value;
@@ -1673,6 +1732,9 @@
         card.appendChild(note);
       }
 
+      var last = lastPerformance(step.ex.id);
+      if (last) card.appendChild(buildLastTime(step.ex, last));
+
       if (step.ex.cue || step.ex.easier) card.appendChild(buildHowTo(step.ex.cue, step.ex.easier));
 
       var priorResult = flow.stepResults[flow.stepIndex];
@@ -1685,7 +1747,9 @@
 
       card.appendChild(buildSetHeader(step.ex.type));
       flow.stepDraft.forEach(function(setVal, idx){
-        card.appendChild(buildSetRow(step.ex.type, 'SET ' + (idx+1), setVal, onDraftChange));
+        var hintSets = last && last.entry ? last.entry.sets : [];
+        var hint = hintSets[idx] || null;
+        card.appendChild(buildSetRow(step.ex.type, 'SET ' + (idx+1), setVal, onDraftChange, hint));
       });
       card.appendChild(buildNoteField(flow.stepDraft, onDraftChange));
 
