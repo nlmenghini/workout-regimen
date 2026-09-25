@@ -273,6 +273,10 @@
   }
 
   .congrats{ text-align:center; padding:20px 6px 6px; }
+  .stale-actions{ display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+  .wait-tag{ font-family:'IBM Plex Mono', monospace; font-size:10px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:var(--accent); border:1px solid currentColor; border-radius:999px; padding:1px 6px; margin-left:6px; vertical-align:middle; }
+  .stale-actions .cancel-link{ margin:4px auto 0; background:none; border:none; font:inherit; font-size:14px; padding:8px 12px; cursor:pointer; text-decoration:underline; }
+  .stale-actions .secondary{ background:transparent; color:var(--ink); border:1px solid var(--line); }
   .congrats h2{ font-size:24px; margin-bottom:10px; }
   .congrats p{ font-size:14px; line-height:1.6; color:var(--ink-soft); margin:0 auto; max-width:340px; }
 
@@ -511,6 +515,8 @@
   var STORAGE_KEY = 'garage-log-sessions';
   var PROFILES_KEY = 'garage-log-profiles';
   var ACTIVE_PROFILE_KEY = 'garage-log-active-profile'; // per-device only — never synced
+  var OUTBOX_KEY = 'garage-log-outbox'; // logged workouts not yet confirmed by Firestore (this device only)
+  var ACTIVE_WORKOUT_KEY = 'garage-log-active-workout'; // in-progress workout, per-device — survives refresh/close until logged or cancelled
 
   var PROGRAM = {
     Mon: {
@@ -621,11 +627,94 @@
   }
   function makeId(){ return 'p-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
 
+  var baseSync = { state:'local', label:'Local only' };
   function setSyncStatus(state, label){
+    baseSync = { state: state, label: label };
+    applySyncStatus();
+  }
+  // Shows the underlying connection state, unless workouts are still
+  // waiting to upload — then that takes priority.
+  function applySyncStatus(){
+    var state = baseSync.state, label = baseSync.label;
+    var waiting = syncEnabled() ? outbox.length : 0;
+    if (waiting){
+      state = 'offline';
+      label = waiting + (waiting === 1 ? ' workout' : ' workouts') + ' waiting to sync';
+    }
     els.syncStatus.classList.remove('is-synced', 'is-offline');
     if (state === 'synced') els.syncStatus.classList.add('is-synced');
     if (state === 'offline') els.syncStatus.classList.add('is-offline');
     els.syncLabel.textContent = label;
+  }
+
+  // ---- Outbox ----
+  // Logged workouts that Firestore hasn't confirmed yet (write rejected, or
+  // logged before sync finished connecting). Kept on this device, shown in
+  // History, and retried every time the app connects until each one lands.
+  // Each session carries a clientId used as its Firestore doc id, so a retry
+  // can never create a duplicate.
+  function syncEnabled(){ var c = window.GARAGE_LOG_FIREBASE_CONFIG; return !!(c && c.apiKey); }
+  function loadOutbox(){
+    try{ var raw = localStorage.getItem(OUTBOX_KEY); var list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; }catch(e){ return []; }
+  }
+  function saveOutbox(){
+    try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); }catch(e){}
+  }
+  var outbox = loadOutbox();
+  var flushing = false;
+
+  function makeSessionId(){ return 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
+  function sameSession(a, b){
+    if (a.clientId && b.clientId) return a.clientId === b.clientId;
+    return a.date === b.date && a.profileId === b.profileId;
+  }
+  function cleanForCloud(session){
+    var copy = {};
+    Object.keys(session).forEach(function(k){ if (k.charAt(0) !== '_' && session[k] !== undefined) copy[k] = session[k]; });
+    return copy;
+  }
+
+  function addToOutbox(session){
+    if (!outbox.some(function(o){ return sameSession(o, session); })){
+      outbox.push(cleanForCloud(session));
+      saveOutbox();
+    }
+    applySyncStatus();
+  }
+  function removeFromOutbox(session){
+    var before = outbox.length;
+    outbox = outbox.filter(function(o){ return !sameSession(o, session); });
+    if (outbox.length !== before){ saveOutbox(); applySyncStatus(); }
+  }
+
+  // Make sure every waiting workout is visible in the session list (the
+  // Firestore snapshot only contains what the server has).
+  function mergeOutboxIntoSessions(){
+    if (!outbox.length) return;
+    var added = false;
+    outbox.forEach(function(o){
+      if (!sessions.some(function(s){ return sameSession(s, o); })){
+        var copy = Object.assign({}, o); copy._pending = true;
+        sessions.push(copy);
+        added = true;
+      }
+    });
+    if (added) sessions.sort(function(a, b){ return (b.date || '').localeCompare(a.date || ''); });
+  }
+
+  function flushOutbox(){
+    if (flushing || !cloud.ready || !cloud.setSessionDoc || !outbox.length) return;
+    flushing = true;
+    var pending = outbox.slice();
+    var remaining = pending.length;
+    pending.forEach(function(item){
+      if (!item.clientId){ item.clientId = makeSessionId(); saveOutbox(); }
+      cloud.setSessionDoc(item.clientId, cleanForCloud(item)).then(function(){
+        removeFromOutbox(item);
+        renderAll();
+      }).catch(function(){ /* stays in the outbox — next connect retries */ })
+      .then(function(){ if (--remaining === 0) flushing = false; });
+    });
   }
 
   // Firestore wiring — active only when firebase-config.js provides real
@@ -835,7 +924,7 @@
   }
 
   function updateStatLine(){
-    if (flow.stage !== 'idle' && workoutTimer.startedAt){
+    if (flow.stage !== 'idle' && !flow.stalePrompt && workoutTimer.startedAt){
       els.statLine.textContent = formatElapsed(Date.now() - workoutTimer.startedAt);
     } else {
       els.statLine.textContent = 'Session ' + (activeSessions().length + 1);
@@ -844,6 +933,13 @@
 
   function startWorkoutTimer(){
     workoutTimer.startedAt = Date.now();
+    if (workoutTimer.intervalId) clearInterval(workoutTimer.intervalId);
+    workoutTimer.intervalId = setInterval(updateStatLine, 1000);
+    updateStatLine();
+  }
+
+  function resumeWorkoutTimer(startedAt){
+    workoutTimer.startedAt = startedAt;
     if (workoutTimer.intervalId) clearInterval(workoutTimer.intervalId);
     workoutTimer.intervalId = setInterval(updateStatLine, 1000);
     updateStatLine();
@@ -901,6 +997,196 @@
       if (flow.stepResults[i]) return true;
     }
     return false;
+  }
+
+  // ---- In-progress workout persistence ----
+  // Every change to the running flow is written to localStorage so an
+  // accidental refresh, app close, or phone kill resumes exactly where you
+  // left off. Cleared only when the workout is logged or cancelled.
+  function stepKey(step){ return step.kind === 'warmup-group' ? '__warmup__' : step.ex.id; }
+
+  // Exercise drafts are arrays with a `.note` property, which JSON drops —
+  // wrap them so the note survives the round trip.
+  function packDraft(d){
+    if (!d) return null;
+    if (Array.isArray(d)) return { list: d.map(function(v){ return Object.assign({}, v); }), note: d.note || '' };
+    return d; // skipped result: { skipped, reason }
+  }
+  function unpackDraft(d){
+    if (!d) return null;
+    if (d.list){
+      var arr = d.list.map(function(v){ return Object.assign({}, v); });
+      arr.note = d.note || '';
+      return arr;
+    }
+    return d;
+  }
+
+  function saveActiveWorkout(){
+    try{
+      if (flow.stage === 'idle') return; // cleared explicitly by logWorkout/cancelFlow only
+      if (flow.stalePrompt) return;       // don't touch timestamps while asking what to do with it
+      var content = JSON.stringify({
+        profileId: activeProfileId,
+        day: flow.day,
+        stage: flow.stage,
+        stepIndex: flow.stepIndex,
+        stepKeys: flow.steps.map(stepKey),
+        stepResults: flow.stepResults.map(packDraft),
+        stepDraft: packDraft(flow.stepDraft),
+        cooldownDraft: flow.cooldownDraft
+      });
+      // Only real edits count as activity — re-renders (sync updates, app
+      // reopen) shouldn't make a forgotten workout look recent.
+      if (content !== lastSavedContent){
+        lastSavedContent = content;
+        flow.lastActivityAt = Date.now();
+      }
+      var record = JSON.parse(content);
+      record.v = 1;
+      record.startedAt = workoutTimer.startedAt;
+      record.lastActivityAt = flow.lastActivityAt || Date.now();
+      localStorage.setItem(ACTIVE_WORKOUT_KEY, JSON.stringify(record));
+    }catch(e){}
+  }
+
+  var lastSavedContent = null;
+  var STALE_AFTER_MS = 12 * 60 * 60 * 1000; // started 12h+ ago → ask before resuming
+
+  function clearActiveWorkout(){
+    try{ localStorage.removeItem(ACTIVE_WORKOUT_KEY); }catch(e){}
+    lastSavedContent = null;
+  }
+
+  // Returns true if a saved workout was restored into `flow`.
+  function restoreActiveWorkout(){
+    var saved;
+    try{ saved = JSON.parse(localStorage.getItem(ACTIVE_WORKOUT_KEY) || 'null'); }catch(e){ saved = null; }
+    if (!saved || !saved.day || !PROGRAM[saved.day] || saved.stage === 'idle') return false;
+
+    if (saved.profileId && findProfile(saved.profileId) && saved.profileId !== activeProfileId){
+      activeProfileId = saved.profileId;
+      saveActiveProfileId(activeProfileId);
+      historyFilter = activeProfileId;
+    }
+
+    var steps = buildSteps(saved.day);
+    // Map saved results by exercise id, so edits to PROGRAM between deploys
+    // (reordered/added/removed exercises) don't misalign logged sets.
+    var byKey = {};
+    (saved.stepKeys || []).forEach(function(k, i){ byKey[k] = unpackDraft((saved.stepResults || [])[i]); });
+    var savedCurrentKey = (saved.stepKeys || [])[saved.stepIndex];
+
+    flow.day = saved.day;
+    flow.steps = steps;
+    flow.stepResults = steps.map(function(st){ return byKey[stepKey(st)] || null; });
+    flow.warmup = [];
+    flow.entries = [];
+    flow.cooldownDraft = saved.cooldownDraft || null;
+
+    if (saved.stage === 'done'){
+      finishSteps(); // rebuilds warmup/entries from stepResults, sets stage 'done'
+      flow.cooldownDraft = saved.cooldownDraft || flow.cooldownDraft;
+    } else {
+      flow.stage = 'running';
+      var idx = -1;
+      for (var i = 0; i < steps.length; i++){ if (stepKey(steps[i]) === savedCurrentKey){ idx = i; break; } }
+      if (idx < 0){ // current step no longer exists — resume at first unfinished step
+        idx = 0;
+        while (idx < steps.length - 1 && flow.stepResults[idx]) idx++;
+      }
+      flow.stepIndex = idx;
+      var draft = unpackDraft(saved.stepDraft);
+      var step = steps[idx];
+      var shapeOk = draft && Array.isArray(draft) &&
+        (step.kind === 'warmup-group' ? draft.length === step.items.length : draft.length > 0 && 'a' in draft[0]);
+      flow.stepDraft = (shapeOk && idx === saved.stepIndex && savedCurrentKey === stepKey(step))
+        ? draft
+        : initStepDraft(step, flow.stepResults[idx]);
+    }
+
+    flow.lastActivityAt = saved.lastActivityAt || saved.savedAt || saved.startedAt || Date.now();
+    flow.stalePrompt = !!(saved.startedAt && Date.now() - saved.startedAt > STALE_AFTER_MS);
+    lastSavedContent = null;
+    resumeWorkoutTimer(saved.startedAt || Date.now());
+    return true;
+  }
+
+  // Anything worth logging? (a saved step, a checked warm-up/cool-down, or
+  // values typed into the step that was open)
+  function workoutHasData(){
+    function draftHasData(d){
+      if (!d) return false;
+      if (d.skipped) return true;
+      return d.some(function(v){ return v.done || v.a !== '' || v.b !== ''; });
+    }
+    return flow.stepResults.some(draftHasData) || draftHasData(flow.stepDraft) ||
+      (flow.cooldownDraft || []).some(function(v){ return v.done; });
+  }
+
+  // Stale workout → "Log what I did": keep the open step if it has values,
+  // then log it dated/timed to when you actually last touched it.
+  function logStaleWorkout(){
+    flow.stalePrompt = false;
+    if (flow.stage === 'running'){
+      if (stepIsValid()) flow.stepResults[flow.stepIndex] = cloneDraft(currentStep(), flow.stepDraft);
+      finishSteps();
+    }
+    var end = flow.lastActivityAt || Date.now();
+    flow.logOverride = {
+      date: new Date(end).toISOString(),
+      durationSec: workoutTimer.startedAt ? Math.max(0, Math.round((end - workoutTimer.startedAt) / 1000)) : null
+    };
+    logWorkout();
+  }
+
+  function discardStaleWorkout(){
+    stopWorkoutTimer();
+    clearActiveWorkout();
+    flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null, cooldownDraft:null };
+    currentDay = computeDefaultDay();
+    renderAll();
+    showToast('Workout discarded');
+  }
+
+  // "Keep going": pick up where you left off, with the timer showing the
+  // time you'd actually spent rather than the whole gap.
+  function resumeStaleWorkout(){
+    flow.stalePrompt = false;
+    var spent = (flow.lastActivityAt && workoutTimer.startedAt) ? Math.max(0, flow.lastActivityAt - workoutTimer.startedAt) : 0;
+    resumeWorkoutTimer(Date.now() - spent);
+    renderAll();
+  }
+
+  function renderStaleView(){
+    var day_ = PROGRAM[flow.day];
+    var started = new Date(workoutTimer.startedAt || Date.now());
+    var when = started.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }) + ' at ' +
+      started.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+    var doneCount = flow.stepResults.filter(Boolean).length;
+
+    var card = document.createElement('div');
+    card.className = 'congrats';
+    var h2 = document.createElement('h2'); h2.textContent = 'Unfinished Workout';
+    var p = document.createElement('p');
+    p.textContent = (day_ ? day_.title : flow.day) + ' — started ' + when + ' — ' +
+      doneCount + ' of ' + flow.steps.length + ' steps saved. What should we do with it?';
+    card.appendChild(h2); card.appendChild(p);
+
+    var actions = document.createElement('div');
+    actions.className = 'stale-actions';
+    function btn(label, cls, fn){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = cls; b.textContent = label;
+      b.addEventListener('click', fn);
+      actions.appendChild(b);
+    }
+    if (workoutHasData()) btn('Log what I did', 'finish-btn', logStaleWorkout);
+    btn('Keep going', 'finish-btn secondary', resumeStaleWorkout);
+    btn('Discard it', 'cancel-link', discardStaleWorkout);
+    card.appendChild(actions);
+
+    els.flowRoot.appendChild(card);
   }
 
   function startFlow(day){
@@ -996,17 +1282,30 @@
   function cancelFlow(){
     if (!window.confirm('Discard this workout in progress? Nothing logged so far will be saved.')) return;
     stopWorkoutTimer();
+    clearActiveWorkout();
     flow = { stage:'idle', day:null, steps:[], stepIndex:0, stepResults:[], warmup:[], entries:[], stepDraft:null, cooldownDraft:null };
     renderAll();
   }
 
   function persistSession(session){
-    if (cloud.ready && cloud.sessionsRef){
-      cloud.addDoc(cloud.sessionsRef, session).catch(function(){
-        sessions.unshift(session);
-        saveSessions(sessions);
-      });
+    if (!session.clientId) session.clientId = makeSessionId();
+    if (cloud.ready && cloud.setSessionDoc){
       sessions.unshift(session); // optimistic; onSnapshot reconciles shortly after
+      // In the outbox until the server confirms it — covers rejected writes
+      // and the app being closed before an offline write goes up.
+      addToOutbox(session);
+      cloud.setSessionDoc(session.clientId, cleanForCloud(session)).then(function(){
+        removeFromOutbox(session);
+        renderAll();
+      }).catch(function(){
+        mergeOutboxIntoSessions();
+        renderAll();
+        showToast('Couldn’t sync — will retry automatically');
+      });
+    } else if (syncEnabled()){
+      // Sync is set up but not connected yet — queue it for upload.
+      sessions.unshift(session);
+      addToOutbox(session);
     } else {
       sessions.unshift(session);
       saveSessions(sessions);
@@ -1020,9 +1319,11 @@
       return { id: item.id, name: item.name, done: !!(v && v.done) };
     });
     var durationSec = workoutTimer.startedAt ? Math.round((Date.now() - workoutTimer.startedAt) / 1000) : null;
+    var override = flow.logOverride || null;
+    if (override) durationSec = override.durationSec;
     stopWorkoutTimer();
     var session = {
-      date: new Date().toISOString(),
+      date: override ? override.date : new Date().toISOString(),
       day: flow.day,
       week: computeWeek(),
       profileId: activeProfileId,
@@ -1034,6 +1335,7 @@
     };
 
     persistSession(session);
+    clearActiveWorkout();
 
     showToast('Workout logged');
     currentDay = computeDefaultDay();
@@ -1220,6 +1522,7 @@
     renderToday();
     renderHistory();
     renderFinishBar();
+    saveActiveWorkout();
 
     if (!profiles.length && !profileModalOpen) openProfileModal();
   }
@@ -1266,7 +1569,8 @@
   function renderToday(){
     els.flowRoot.innerHTML = '';
     els.stepNav.innerHTML = '';
-    if (flow.stage === 'idle') renderIdleView();
+    if (flow.stalePrompt) renderStaleView();
+    else if (flow.stage === 'idle') renderIdleView();
     else if (flow.stage === 'running') renderRunningView();
     else renderDoneView();
   }
@@ -1416,6 +1720,7 @@
 
   function onDraftChange(){
     renderFinishBar();
+    saveActiveWorkout();
   }
 
   function renderDoneView(){
@@ -1455,6 +1760,10 @@
   }
 
   function renderFinishBar(){
+    var hideBar = !!flow.stalePrompt;
+    els.finishBtn.style.display = hideBar ? 'none' : '';
+    els.finishNote.style.display = hideBar ? 'none' : '';
+    if (hideBar) return;
     if (flow.stage === 'idle'){
       els.finishBtn.textContent = 'Start Workout';
       els.finishBtn.disabled = false;
@@ -1713,6 +2022,10 @@
       var d = new Date(s.date);
       var dateStr = isNaN(d) ? '' : d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
       var dateEl = document.createElement('div'); dateEl.className='date'; dateEl.textContent = dateStr;
+      if (syncEnabled() && outbox.some(function(o){ return sameSession(o, s); })){
+        var waitTag = document.createElement('span'); waitTag.className = 'wait-tag'; waitTag.textContent = 'Waiting to sync';
+        dateEl.appendChild(document.createTextNode(' ')); dateEl.appendChild(waitTag);
+      }
       var subEl = document.createElement('div'); subEl.className='sub';
       var dayTitle = PROGRAM[s.day] ? PROGRAM[s.day].title : '';
       var subParts = s.skippedDay
@@ -1824,8 +2137,10 @@
     var idx = sessions.indexOf(s);
     if (idx > -1) sessions.splice(idx, 1);
 
-    if (cloud.ready && cloud.sessionsRef && s._docId){
-      cloud.deleteDoc(s._docId).catch(function(){ /* onSnapshot will reconcile either way */ });
+    removeFromOutbox(s);
+    var docId = s._docId || (s.clientId && !s._pending ? s.clientId : null);
+    if (cloud.ready && cloud.sessionsRef && docId){
+      cloud.deleteDoc(docId).catch(function(){ /* onSnapshot will reconcile either way */ });
     } else {
       saveSessions(sessions);
     }
@@ -1929,6 +2244,7 @@
       cloud.sessionsRef = sessionsRef;
       cloud.addDoc = function(ref, data){ return dbMod.addDoc(ref, data); };
       cloud.deleteDoc = function(docId){ return dbMod.deleteDoc(dbMod.doc(db, 'households', code, 'sessions', docId)); };
+      cloud.setSessionDoc = function(docId, data){ return dbMod.setDoc(dbMod.doc(db, 'households', code, 'sessions', docId), data); };
       cloud.updateSessionDoc = function(docId, data){ return dbMod.updateDoc(dbMod.doc(db, 'households', code, 'sessions', docId), data); };
       cloud.setProfiles = function(list){ return dbMod.setDoc(householdRef, { profiles: list }, { merge: true }); };
 
@@ -1938,6 +2254,7 @@
           return;
         }
         cloud.ready = true;
+        flushOutbox();
 
         dbMod.onSnapshot(householdRef, function(snap){
           var data = snap.data();
@@ -1979,8 +2296,14 @@
           sessions = snap.docs.map(function(d){
             var data = d.data();
             data._docId = d.id;
+            if (d.metadata && d.metadata.hasPendingWrites) data._local = true; // not on the server yet
             return data;
           });
+          // Anything the server now has is done; anything still waiting stays visible.
+          if (outbox.length){
+            sessions.forEach(function(s){ if (!s._pending && !s._local && s.clientId) removeFromOutbox(s); });
+            mergeOutboxIntoSessions();
+          }
           reconcileOrphanSessions();
           setSyncStatus('synced', 'Synced');
           renderAll();
@@ -1994,8 +2317,19 @@
   }
 
   // ---- Init ----
+  mergeOutboxIntoSessions();
+  window.addEventListener('online', flushOutbox);
   currentDay = computeDefaultDay();
+  var resumed = false;
+  try{ resumed = restoreActiveWorkout(); }catch(e){ resumed = false; flow.stage = 'idle'; }
+  if (resumed) currentDay = flow.day;
   renderAll();
+  if (resumed && !flow.stalePrompt) showToast('Resumed your workout in progress');
+  // Belt-and-braces: flush on the way out too (app switch, close, refresh).
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') saveActiveWorkout(); });
+  window.addEventListener('pagehide', saveActiveWorkout);
+  // Ask the browser not to evict our storage under pressure (best effort).
+  try{ if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   initCloud();
 })();
 </script>

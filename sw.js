@@ -1,4 +1,4 @@
-const CACHE = 'garage-log-v2';
+const CACHE = 'garage-log-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
