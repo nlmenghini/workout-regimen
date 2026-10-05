@@ -210,6 +210,7 @@
     padding:0 0 5px;
   }
   .set-header.type-reps, .set-header.type-time{ grid-template-columns:44px 1fr 22px; }
+  .set-header.type-calc{ grid-template-columns:44px 1fr 28px; }
 
   .warmup-toggle{
     display:flex; align-items:center; gap:10px; width:100%; padding:12px 2px; margin-top:2px;
@@ -382,6 +383,45 @@
   .rules{ background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius); padding:14px; font-size:13px; line-height:1.55; color:var(--ink-soft); }
   .rules strong{ color:var(--ink); }
 
+  /* Plate calculator */
+  .plate-panel{ margin:0 0 8px 52px; padding:8px 10px; background:var(--paper); border:1px solid var(--line); border-radius:10px; font-size:12px; color:var(--ink-soft); }
+  .plate-panel[hidden]{ display:none; }
+  .plate-panel + .set-row{ border-top:1px dashed var(--line); }
+  .plate-panel.pl-warn{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; border-color:var(--accent); color:var(--ink); }
+  .pl-pick{ border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:999px; padding:4px 10px; font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600; cursor:pointer; }
+  .pl-top{ display:flex; align-items:center; gap:10px; }
+  .pl-side{ flex:0 0 auto; min-width:58px; line-height:1.25; }
+  .pl-side strong{ display:block; font-family:'IBM Plex Mono', monospace; font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .pl-label{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-soft); }
+  .plate-svg{ display:block; max-width:100%; height:auto; overflow:visible; }
+  .plate-svg .pl-bar{ fill:var(--ink-soft); }
+  .plate-svg .pl-sleeve{ fill:var(--line); }
+  .plate-svg .pl-keep{ fill:var(--steel); }
+  .plate-svg .pl-add{ fill:var(--accent); }
+  .pl-change{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:6px; }
+  .pl-change .pl-label{ margin-right:1px; }
+  .pl-change .pl-label ~ .pl-label{ margin-left:6px; }
+  .pl-chip{ font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600; border-radius:6px; padding:2px 7px; font-variant-numeric:tabular-nums; }
+  .pl-chip.add{ background:var(--accent); color:var(--accent-ink); }
+  .pl-chip.remove{ border:1px solid var(--line); color:var(--ink-soft); text-decoration:line-through; }
+  .pl-bar-tag{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--steel); margin:0 0 8px; }
+
+  .calc-card{ background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+  .bar-toggle{ display:flex; gap:6px; margin-bottom:14px; }
+  .bar-toggle button{ flex:1; padding:10px 8px; border-radius:10px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font-family:'Oswald', sans-serif; font-size:14px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; }
+  .bar-toggle button span{ display:block; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.04em; text-transform:none; color:var(--ink-soft); margin-top:2px; }
+  .bar-toggle button.active{ border-color:var(--accent); background:var(--accent); color:var(--accent-ink); }
+  .bar-toggle button.active span{ color:var(--accent-ink); opacity:0.85; }
+  .calc-row{ display:grid; grid-template-columns:44px 1fr 28px; align-items:center; gap:8px; padding:6px 0; }
+  .plate-panel + .calc-row{ border-top:1px dashed var(--line); }
+  .calc-row input{ width:100%; border:1px solid var(--line); background:var(--paper); color:var(--ink); border-radius:8px; padding:9px 8px; font-family:'IBM Plex Mono', monospace; font-size:16px; text-align:center; font-variant-numeric:tabular-nums; }
+  .calc-row input::placeholder{ color:var(--ink-soft); opacity:0.45; }
+  .calc-remove{ background:none; border:none; color:var(--ink-soft); font-size:20px; line-height:1; cursor:pointer; padding:4px; }
+  .calc-actions{ display:flex; gap:8px; margin-top:8px; }
+  .calc-actions button{ flex:1; padding:11px; border-radius:10px; border:1px dashed var(--line); background:none; color:var(--ink); font-size:13px; font-family:inherit; cursor:pointer; }
+  .calc-inventory{ font-size:12px; color:var(--ink-soft); line-height:1.55; }
+  .calc-inventory .mono{ color:var(--ink); }
+
   nav.tabbar{
     position:fixed; left:0; right:0; bottom:0; max-width:480px; margin:0 auto; display:flex;
     background:var(--paper-raised); border-top:1px solid var(--line);
@@ -476,6 +516,24 @@
       <div id="history-list"></div>
     </section>
 
+    <section class="view" id="view-plates">
+      <div class="calc-card">
+        <div class="bar-toggle" id="calc-bar-toggle">
+          <button type="button" data-bar="barbell">Barbell<span>35 lb</span></button>
+          <button type="button" data-bar="curl">Curl bar<span>30 lb</span></button>
+        </div>
+        <div class="set-header type-calc"><span></span><span>Total weight (lb)</span><span></span></div>
+        <div id="calc-rows"></div>
+        <div class="calc-actions">
+          <button type="button" id="calc-add">+ Add set</button>
+          <button type="button" id="calc-clear">Clear</button>
+        </div>
+      </div>
+      <div class="rules calc-inventory">
+        <strong>Your plates</strong> (pairs): <span class="mono">45 · 35 · 25 · 15 · 10×2 · 5 · 2.5×3</span>. Heaviest plates always go on first; each set keeps as much of the previous loadout as it can and only strips what’s outside the change. Blue plates stay on, orange get added.
+      </div>
+    </section>
+
     <section class="view" id="view-program">
       <div class="rules">
         <strong>Progression.</strong> Weeks 1–2: leave 2–3 reps in reserve (RPE 6–7), dial in form. Weeks 3–4: leave 1–2 in reserve (RPE 7–8), add 5–10lb once every set at the top of the rep range feels solid for two sessions running. Every 5th week, deload — same weights, roughly half the sets. Sharp joint pain (ankle/knee) means regress or swap the move, not push through.
@@ -499,6 +557,10 @@
     <button data-view="history">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
       History
+    </button>
+    <button data-view="plates">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 3.5v3M12 17.5v3"/></svg>
+      Plates
     </button>
     <button data-view="program">
       <svg viewBox="0 0 24 24"><path d="M4 4.5h11a3 3 0 0 1 3 3V20H7a3 3 0 0 1-3-3V4.5Z"/><path d="M4 17h14"/></svg>
@@ -530,11 +592,11 @@
         { id:'wu-band-walk', name:'Band Lateral & Monster Walks', target:'2×10 each direction', cue:'Band around the ankles or above the knees, soft knees, stay low, small controlled steps — wakes up the hips before squatting.' }
       ],
       exercises:[
-        {id:'box-squat', name:'Box Squat', target:'3 × 8', type:'load', note:'Box sets your depth — keep it consistent', cue:'Sit back onto the box under control, brief pause, then drive up through your heels — the box keeps your depth honest and consistent.', easier:'No box handy? A sturdy bench or chair works, or just squat a little shallower.'},
-        {id:'bench-press', name:'Barbell Bench Press', target:'3 × 8–10', type:'load', cue:'Feet flat, slight arch, bar path from mid-chest straight up — control the lower, don’t bounce it off your chest.', easier:'Shoulders or wrists cranky? Switch to dumbbells for a more natural path, or reduce the weight and add a rep.'},
+        {id:'box-squat', bar:'barbell', name:'Box Squat', target:'3 × 8', type:'load', note:'Box sets your depth — keep it consistent', cue:'Sit back onto the box under control, brief pause, then drive up through your heels — the box keeps your depth honest and consistent.', easier:'No box handy? A sturdy bench or chair works, or just squat a little shallower.'},
+        {id:'bench-press', bar:'barbell', name:'Barbell Bench Press', target:'3 × 8–10', type:'load', cue:'Feet flat, slight arch, bar path from mid-chest straight up — control the lower, don’t bounce it off your chest.', easier:'Shoulders or wrists cranky? Switch to dumbbells for a more natural path, or reduce the weight and add a rep.'},
         {id:'sl-rdl', name:'Single-Leg RDL', target:'3 × 8 /side', type:'load', note:'Kettlebell or dumbbell', cue:'Hinge at the hip, keep a soft bend in the standing knee, let the free leg swing back for balance — chest and heel move in opposite directions.', easier:'Balance a struggle? Tap the back toe down lightly between reps, or do it bodyweight first.'},
-        {id:'hip-thrust', name:'Hip Thrust', target:'3 × 10', type:'load', note:'Shoulders on bench, bar across hips', cue:'Drive through your heels and squeeze the glutes hard at the top — chin tucked, ribs down, don’t overarch the lower back.', easier:'Skip the bar and use just bodyweight or a light plate on the hips until the pattern feels solid.'},
-        {id:'skull-crushers', name:'Skull Crushers', target:'3 × 10–12', type:'load', note:'Curl bar, lying on bench', cue:'Elbows stay pointed at the ceiling and don’t flare — only the forearms move, lowering the bar toward your forehead.', easier:'Lighter weight or fewer reps if the elbows complain; a dumbbell overhead triceps extension is a fine swap.'},
+        {id:'hip-thrust', bar:'barbell', name:'Hip Thrust', target:'3 × 10', type:'load', note:'Shoulders on bench, bar across hips', cue:'Drive through your heels and squeeze the glutes hard at the top — chin tucked, ribs down, don’t overarch the lower back.', easier:'Skip the bar and use just bodyweight or a light plate on the hips until the pattern feels solid.'},
+        {id:'skull-crushers', bar:'curl', name:'Skull Crushers', target:'3 × 10–12', type:'load', note:'Curl bar, lying on bench', cue:'Elbows stay pointed at the ceiling and don’t flare — only the forearms move, lowering the bar toward your forehead.', easier:'Lighter weight or fewer reps if the elbows complain; a dumbbell overhead triceps extension is a fine swap.'},
         {id:'calf-raise', name:'Standing Calf Raise', target:'3 × 15', type:'load', note:'Hold a plate or dumbbell', cue:'Rise all the way onto your toes, pause briefly at the top, lower slow and controlled through the full range.', easier:'Bodyweight only is plenty to start — add load once 15 clean reps feel easy.'}
       ]
     },
@@ -545,12 +607,12 @@
         { id:'wu-glute-bridge', name:'Glute Bridges & Band Good Mornings', target:'2×12', cue:'Bridges: squeeze glutes at the top, don’t just arch the back. Band good mornings: hinge at the hips with a flat back, light band tension — wakes up the hamstrings and glutes before deadlifting.' }
       ],
       exercises:[
-        {id:'deadlift', name:'Conventional Deadlift', target:'3 × 6–8', type:'load', note:'Stop short of full lockout if your back needs it', cue:'Bar over midfoot, flat back, push the floor away with your legs before pulling — bar stays close the whole way up.', easier:'Elevate the bar on blocks or plates to shorten the range, or swap in a hip hinge on a lighter kettlebell.'},
+        {id:'deadlift', bar:'barbell', name:'Conventional Deadlift', target:'3 × 6–8', type:'load', note:'Stop short of full lockout if your back needs it', cue:'Bar over midfoot, flat back, push the floor away with your legs before pulling — bar stays close the whole way up.', easier:'Elevate the bar on blocks or plates to shorten the range, or swap in a hip hinge on a lighter kettlebell.'},
         {id:'db-row', name:'One-Arm DB Row', target:'3 × 8–10 /side', type:'load', note:'Brace opposite hand/knee on the bench', cue:'Flat back, pull the elbow straight back past your hip, squeeze the shoulder blade — avoid twisting the torso.', easier:'Lighter dumbbell or fewer reps if the lower back feels it more than the back muscles.'},
         {id:'goblet-squat', name:'Goblet Squat', target:'3 × 10', type:'load', note:'Kettlebell, controlled depth', cue:'Hold the kettlebell close to your chest, elbows sliding between the knees as you sit down between your hips.', easier:'Go only as deep as feels comfortable on the knees/ankles, or hold onto something for balance.'},
         {id:'ohp', name:'DB Overhead Press', target:'3 × 8–10', type:'load', cue:'Press straight up, ribs down, avoid leaning back — dumbbells finish stacked over your ears, not out in front.', easier:'Seated instead of standing removes the balance/core demand if the lower back needs a break.'},
-        {id:'curls', name:'Curl Bar Curls', target:'3 × 10–12', type:'load', cue:'Elbows pinned to your sides the whole set — curl with the forearms only, no swinging or leaning back.', easier:'Drop the weight before you start swinging; strict form beats heavier sloppy reps.'},
-        {id:'good-morning', name:'Barbell Good Morning', target:'3 × 10–12', type:'load', note:'Bar across upper back, soft knees', cue:'Hinge at the hips with a flat back, push your hips back until you feel a stretch in the hamstrings, then drive them forward to stand — this is a new movement, so start light.', easier:'Drop to just the bar, or swap in a band good morning if the lower back needs a lighter option.'},
+        {id:'curls', bar:'curl', name:'Curl Bar Curls', target:'3 × 10–12', type:'load', cue:'Elbows pinned to your sides the whole set — curl with the forearms only, no swinging or leaning back.', easier:'Drop the weight before you start swinging; strict form beats heavier sloppy reps.'},
+        {id:'good-morning', bar:'barbell', name:'Barbell Good Morning', target:'3 × 10–12', type:'load', note:'Bar across upper back, soft knees', cue:'Hinge at the hips with a flat back, push your hips back until you feel a stretch in the hamstrings, then drive them forward to stand — this is a new movement, so start light.', easier:'Drop to just the bar, or swap in a band good morning if the lower back needs a lighter option.'},
         {id:'balance', name:'Single-Leg Balance Reach', target:'3 × 8 /side', type:'reps', note:'Bodyweight — ankle stability', cue:'Stand on one leg (the ankle you’re rehabbing gets extra attention) and reach the opposite hand slowly toward the floor, then back up — all about control, not speed.', easier:'Keep a fingertip on a wall or chair for balance until stability improves.'}
       ]
     },
@@ -564,10 +626,10 @@
         {id:'kb-swing', name:'Kettlebell Swing', target:'3 × 12', type:'load', note:'18 or 35lb', cue:'Hinge at the hips and snap them forward to drive the bell to chest height — it’s a hip-thrust, not a squat or an arm lift.', easier:'Lower back talking? Drop to the lighter kettlebell and focus purely on the hip snap.'},
         {id:'step-up', name:'Box Step-Up', target:'3 × 8 /leg', type:'load', note:'16" box, controlled tempo — no jumping', cue:'Drive through the heel of the foot on the box, stand up tall — avoid pushing off the trailing leg.', easier:'Use a lower step, or hold a rail/wall for balance if the ankle needs more confidence.'},
         {id:'sa-press', name:'Single-Arm DB Press', target:'3 × 10 /side', type:'load', note:'Flat bench, alternating arms', cue:'Press straight up over the shoulder, keep the non-working side braced flat on the bench so you don’t rotate.', easier:'Lighter dumbbell, or press both arms together if single-arm balance feels unstable.'},
-        {id:'twist', name:'Med Ball Russian Twist', target:'3 × 10 /side', type:'reps', cue:'Lean back slightly, feet can stay down for support, rotate from the ribs and tap the ball to the floor each side.', easier:'Keep feet planted and go slower/smaller range rather than lifting feet off the floor.'},
+        {id:'twist', name:'Med Ball Russian Twist', target:'3 × 10 /side', type:'load', note:'Weight = med ball', cue:'Lean back slightly, feet can stay down for support, rotate from the ribs and tap the ball to the floor each side.', easier:'Keep feet planted and go slower/smaller range rather than lifting feet off the floor.'},
         {id:'plank', name:'Plank', target:'3 × 30–45s', type:'time', cue:'Straight line from shoulders to ankles, ribs pulled down, squeeze glutes — don’t let the hips sag or pike up.', easier:'Drop to your knees, or shorten the hold time and build up gradually.'},
         {id:'birddog', name:'Bird-Dog', target:'3 × 10 /side', type:'reps', note:'Or Superman', cue:'Extend opposite arm and leg slowly while keeping the back flat and hips square — no rotating or arching.', easier:'Move slower and use a smaller range of motion, or do just the leg extension without the arm.'},
-        {id:'ankle-band', name:'Band Ankle Work', target:'3 × 15 /direction', type:'reps', note:'Dorsiflexion, eversion, inversion — slow and controlled', cue:'Band around the forefoot, move slow and deliberate through each direction — this is rehab work, not a burn-it-out set.', easier:'Lighter band tension or fewer reps if the ankle feels irritated afterward — consistency matters more than load here.'}
+        {id:'ankle-band', name:'Band Ankle Work', target:'3 × 15 /direction', type:'load', note:'Dorsiflexion, eversion, inversion — slow and controlled · Weight = band resistance', cue:'Band around the forefoot, move slow and deliberate through each direction — this is rehab work, not a burn-it-out set.', easier:'Lighter band tension or fewer reps if the ankle feels irritated afterward — consistency matters more than load here.'}
       ]
     }
   };
@@ -1512,7 +1574,8 @@
       label.textContent = 'Last time · ' + fmtShortDate(last.date) + ' — ';
       box.appendChild(label);
       var sets = document.createElement('span'); sets.className = 'lt-sets';
-      sets.textContent = last.entry.sets.map(function(st){ return fmtSet(ex.type, st); }).join(', ');
+      var loggedType = last.entry.type || ex.type; // older logs may predate a type change
+      sets.textContent = last.entry.sets.map(function(st){ return fmtSet(loggedType, st); }).join(', ');
       box.appendChild(sets);
       if (last.entry.note){
         var n = document.createElement('span'); n.className = 'lt-note'; n.textContent = '“' + last.entry.note + '”';
@@ -1576,6 +1639,194 @@
     row.classList.toggle('filled', !!filled);
   }
 
+  // ---- Plate calculator ----
+  // Garage inventory, expressed per side (pairs split across the two sleeves).
+  // Plates always stack heaviest-innermost; between sets we keep the longest
+  // inner run that still matches and only strip/add what's outside it.
+  var BARS = {
+    barbell: { id:'barbell', name:'Barbell', weight:35 },
+    curl:    { id:'curl',    name:'Curl bar', weight:30 }
+  };
+  var PLATES_PER_SIDE = [ [45,1], [35,1], [25,1], [15,1], [10,2], [5,1], [2.5,3] ];
+
+  // Every legal per-side stack (already in heavy→light order), indexed by
+  // per-side weight in quarter-pounds so float sums never miss a lookup.
+  var PLATE_STACKS = (function(){
+    var byKey = {};
+    (function walk(i, stack, sum){
+      if (i === PLATES_PER_SIDE.length){
+        var k = Math.round(sum * 4);
+        (byKey[k] = byKey[k] || []).push(stack.slice());
+        return;
+      }
+      var w = PLATES_PER_SIDE[i][0], max = PLATES_PER_SIDE[i][1];
+      for (var n = 0; n <= max; n++){
+        for (var j = 0; j < n; j++) stack.push(w);
+        walk(i + 1, stack, sum + n * w);
+        for (var j2 = 0; j2 < n; j2++) stack.pop();
+      }
+    })(0, [], 0);
+    var keys = Object.keys(byKey).map(Number).sort(function(a,b){ return a - b; });
+    return { byKey: byKey, keys: keys };
+  })();
+
+  function fmtLb(n){ return (Math.round(n * 10) / 10).toString(); }
+
+  // Tie-breaker: with equal moves and plate count, keep the heavier plates
+  // innermost (e.g. 15+5+2.5 over 10+10+2.5) — they're likelier to stay put
+  // as the weight climbs.
+  function heavierInside(a, b){
+    for (var i = 0; i < a.length; i++){ if (a[i] !== b[i]) return a[i] > b[i]; }
+    return false;
+  }
+
+  // Returns how to load `total` lb on `bar`, starting from `prevStack` (what's
+  // already on each side; [] for an empty bar).
+  function solvePlates(barId, total, prevStack){
+    var bar = BARS[barId];
+    prevStack = prevStack || [];
+    if (!(total > 0)) return { status:'empty' };
+    if (total < bar.weight) return { status:'below', bar: bar };
+    var key = Math.round(((total - bar.weight) / 2) * 4);
+    var exact = Math.abs((total - bar.weight) / 2 * 4 - key) < 1e-6;
+    var options = exact ? PLATE_STACKS.byKey[key] : null;
+    if (!options){
+      var lower = null, upper = null;
+      PLATE_STACKS.keys.forEach(function(k){
+        var t = bar.weight + (k / 4) * 2;
+        if (t < total) lower = t;
+        else if (t > total && upper === null) upper = t;
+      });
+      return { status: upper === null ? 'over' : 'inexact', bar: bar, lower: lower, upper: upper };
+    }
+    var best = null;
+    options.forEach(function(stack){
+      var keep = 0;
+      while (keep < stack.length && keep < prevStack.length && stack[keep] === prevStack[keep]) keep++;
+      var moves = (prevStack.length - keep) + (stack.length - keep);
+      if (!best || moves < best.moves ||
+          (moves === best.moves && (stack.length < best.stack.length ||
+            (stack.length === best.stack.length && heavierInside(stack, best.stack))))){
+        best = { stack: stack, keep: keep, moves: moves };
+      }
+    });
+    return {
+      status: 'ok', bar: bar, total: total,
+      perSide: (total - bar.weight) / 2,
+      stack: best.stack, keep: best.keep, moves: best.moves,
+      remove: prevStack.slice(best.keep).reverse(), // outermost comes off first
+      add: best.stack.slice(best.keep)
+    };
+  }
+
+  // Solves a whole sequence of set weights, each set starting from the
+  // previous set's loadout. Unloadable entries don't change what's on the bar.
+  function solvePlateSequence(barId, weights){
+    var prev = [], started = false;
+    return weights.map(function(w){
+      var r = solvePlates(barId, parseFloat(w), prev);
+      if (r.status === 'ok'){ r.first = !started; started = true; prev = r.stack; }
+      return r;
+    });
+  }
+
+  var PLATE_DIMS = { 45:[60,13], 35:[54,12], 25:[48,11], 15:[42,10], 10:[36,9], 5:[28,8], 2.5:[22,7] };
+
+  function plateSvg(stack, keep){
+    var collarX = 34, x = collarX + 6, h = 68, mid = h / 2;
+    var parts = [];
+    stack.forEach(function(w, i){
+      var d = PLATE_DIMS[w], cls = i < keep ? 'pl-keep' : 'pl-add';
+      parts.push('<rect class="' + cls + '" x="' + x + '" y="' + (mid - d[0]/2) + '" width="' + d[1] + '" height="' + d[0] + '" rx="2.5"/>');
+      x += d[1] + 2;
+    });
+    var sleeveEnd = Math.max(x + 14, 150);
+    var svg = '<svg class="plate-svg" viewBox="0 0 ' + sleeveEnd + ' ' + h + '" width="' + sleeveEnd + '" height="' + h + '" aria-hidden="true">' +
+      '<rect class="pl-bar" x="0" y="' + (mid - 3) + '" width="' + collarX + '" height="6" rx="1"/>' +
+      '<rect class="pl-bar" x="' + collarX + '" y="' + (mid - 11) + '" width="5" height="22" rx="1"/>' +
+      '<rect class="pl-sleeve" x="' + (collarX + 5) + '" y="' + (mid - 5) + '" width="' + (sleeveEnd - collarX - 5) + '" height="10" rx="2"/>' +
+      parts.join('') + '</svg>';
+    return svg;
+  }
+
+  function plateChips(list, cls){
+    return list.map(function(w){ return '<span class="pl-chip ' + cls + '">' + fmtLb(w) + '</span>'; }).join('');
+  }
+
+  // Fills `el` with the breakdown for result `r`. `onPick(weight)` is called
+  // when one of the "closest weight" buttons is tapped.
+  function renderPlatePanel(el, r, onPick){
+    el.innerHTML = '';
+    el.className = 'plate-panel';
+    if (!r || r.status === 'empty'){ el.hidden = true; return; }
+    el.hidden = false;
+
+    if (r.status === 'below'){
+      el.classList.add('pl-warn');
+      el.textContent = 'Lighter than the empty ' + r.bar.name.toLowerCase() + ' (' + r.bar.weight + ' lb).';
+      return;
+    }
+    if (r.status === 'inexact' || r.status === 'over'){
+      el.classList.add('pl-warn');
+      var msg = document.createElement('span');
+      msg.textContent = r.status === 'over'
+        ? 'More than your plates can load — max is ' + fmtLb(r.lower) + ' lb.'
+        : 'Can’t load that exactly — closest:';
+      el.appendChild(msg);
+      [r.lower, r.status === 'over' ? null : r.upper].forEach(function(t){
+        if (t === null || t === undefined) return;
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'pl-pick'; b.textContent = fmtLb(t) + ' lb';
+        b.addEventListener('click', function(){ onPick(t); });
+        el.appendChild(b);
+      });
+      return;
+    }
+
+    var top = document.createElement('div');
+    top.className = 'pl-top';
+    var side = document.createElement('div');
+    side.className = 'pl-side';
+    side.innerHTML = r.stack.length
+      ? '<span class="pl-label">Per side</span> <strong>' + fmtLb(r.perSide) + '</strong>'
+      : '<span class="pl-label">Empty ' + r.bar.name.toLowerCase() + '</span>';
+    top.appendChild(side);
+    top.insertAdjacentHTML('beforeend', plateSvg(r.stack, r.keep));
+    el.appendChild(top);
+
+    var ch = document.createElement('div');
+    ch.className = 'pl-change';
+    if (r.first){
+      ch.innerHTML = r.stack.length ? '<span class="pl-label">Load</span>' + plateChips(r.stack, 'add') : '<span class="pl-label">Just the bar</span>';
+    } else if (!r.remove.length && !r.add.length){
+      ch.innerHTML = '<span class="pl-label">No change</span>';
+    } else {
+      var html = '';
+      if (r.remove.length) html += '<span class="pl-label">Remove</span>' + plateChips(r.remove, 'remove');
+      if (r.add.length) html += '<span class="pl-label">' + (r.remove.length ? 'then add' : 'Add') + '</span>' + plateChips(r.add, 'add');
+      ch.innerHTML = html;
+    }
+    el.appendChild(ch);
+  }
+
+  // Inserts a plate panel under each set row of a bar exercise and keeps them
+  // in sync as weights are typed. Returns a refresh function.
+  function attachPlatePanels(barId, rows, getWeights, onPick){
+    var panels = rows.map(function(row){
+      var p = document.createElement('div');
+      row.parentNode.insertBefore(p, row.nextSibling);
+      return p;
+    });
+    function refresh(){
+      var results = solvePlateSequence(barId, getWeights());
+      panels.forEach(function(p, i){
+        renderPlatePanel(p, results[i], function(t){ onPick(i, t); });
+      });
+    }
+    refresh();
+    return refresh;
+  }
+
   function renderAll(){
     renderHeader();
     renderToday();
@@ -1594,6 +1845,12 @@
     if (currentView === 'history'){
       els.dayTitle.textContent = 'History';
       els.daySubtitle.textContent = 'Everything you’ve logged';
+      els.dayPicker.classList.add('hidden');
+      return;
+    }
+    if (currentView === 'plates'){
+      els.dayTitle.textContent = 'Plates';
+      els.daySubtitle.textContent = 'What to load, set by set';
       els.dayPicker.classList.add('hidden');
       return;
     }
@@ -1746,11 +2003,34 @@
       }
 
       card.appendChild(buildSetHeader(step.ex.type));
+      var usesBar = step.ex.bar && BARS[step.ex.bar] && step.ex.type === 'load';
+      var refreshPlates = null;
+      var setChange = usesBar ? function(){ if (refreshPlates) refreshPlates(); onDraftChange(); } : onDraftChange;
+      var setRows = [];
       flow.stepDraft.forEach(function(setVal, idx){
         var hintSets = last && last.entry ? last.entry.sets : [];
         var hint = hintSets[idx] || null;
-        card.appendChild(buildSetRow(step.ex.type, 'SET ' + (idx+1), setVal, onDraftChange, hint));
+        if (hint && last.entry.type && last.entry.type !== step.ex.type){
+          // e.g. logged as reps-only before a weight field existed → reps go in the reps box
+          hint = (last.entry.type === 'reps' && step.ex.type === 'load') ? { a:'', b: hint.a } : null;
+        }
+        var row = buildSetRow(step.ex.type, 'SET ' + (idx+1), setVal, setChange, hint);
+        setRows.push(row);
+        card.appendChild(row);
       });
+      if (usesBar){
+        var barTag = document.createElement('div');
+        barTag.className = 'pl-bar-tag';
+        barTag.textContent = BARS[step.ex.bar].name + ' · ' + BARS[step.ex.bar].weight + ' lb — weights are totals incl. bar';
+        card.insertBefore(barTag, setRows[0].previousSibling);
+        refreshPlates = attachPlatePanels(step.ex.bar, setRows,
+          function(){ return flow.stepDraft.map(function(s){ return s.a; }); },
+          function(i, t){
+            var input = setRows[i].querySelector('input');
+            input.value = String(t);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+      }
       card.appendChild(buildNoteField(flow.stepDraft, onDraftChange));
 
       els.flowRoot.appendChild(card);
@@ -1935,6 +2215,8 @@
     }
     var entry = (session.entries || []).filter(function(e){ return e.exercise === metric && !e.skipped; })[0];
     if (!entry || !entry.sets || !entry.sets.length) return null;
+    var currentType = (progressExerciseOptions().filter(function(o){ return o.id === metric; })[0] || {}).type;
+    if (entry.type && currentType && entry.type !== currentType) return null; // e.g. reps logged before this had a weight field
     return entry.sets.reduce(function(max, s){ return Math.max(max, s.a || 0); }, 0);
   }
 
@@ -2212,6 +2494,59 @@
     showToast('Session deleted');
     renderAll();
   }
+
+  // ---- Standalone plate calculator (Plates tab) ----
+  var CALC_KEY = 'garage-log-plate-calc'; // per-device convenience only — never synced
+  var calc = { bar:'barbell', weights:['', '', ''] };
+  try {
+    var savedCalc = JSON.parse(localStorage.getItem(CALC_KEY) || 'null');
+    if (savedCalc && BARS[savedCalc.bar] && Array.isArray(savedCalc.weights) && savedCalc.weights.length){
+      calc = { bar: savedCalc.bar, weights: savedCalc.weights.map(String) };
+    }
+  } catch (e) {}
+  function saveCalc(){ try { localStorage.setItem(CALC_KEY, JSON.stringify(calc)); } catch (e) {} }
+
+  function renderCalc(focusIdx){
+    Array.prototype.forEach.call(document.querySelectorAll('#calc-bar-toggle button'), function(b){
+      b.classList.toggle('active', b.getAttribute('data-bar') === calc.bar);
+    });
+    var root = document.getElementById('calc-rows');
+    root.innerHTML = '';
+    var rows = [];
+    calc.weights.forEach(function(w, i){
+      var row = document.createElement('div');
+      row.className = 'calc-row';
+      var label = document.createElement('div'); label.className = 'set-label'; label.textContent = 'SET ' + (i + 1);
+      var input = document.createElement('input');
+      input.type = 'number'; input.inputMode = 'decimal'; input.step = '2.5';
+      input.placeholder = String(BARS[calc.bar].weight);
+      input.value = w;
+      input.addEventListener('input', function(){ calc.weights[i] = input.value; saveCalc(); refresh(); });
+      var rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'calc-remove'; rm.setAttribute('aria-label', 'Remove set ' + (i + 1)); rm.textContent = '×';
+      rm.disabled = calc.weights.length <= 1;
+      rm.style.visibility = calc.weights.length <= 1 ? 'hidden' : '';
+      rm.addEventListener('click', function(){ calc.weights.splice(i, 1); saveCalc(); renderCalc(); });
+      row.appendChild(label); row.appendChild(input); row.appendChild(rm);
+      root.appendChild(row);
+      rows.push(row);
+    });
+    var refresh = attachPlatePanels(calc.bar, rows,
+      function(){ return calc.weights; },
+      function(i, t){ calc.weights[i] = String(t); saveCalc(); renderCalc(); });
+    if (focusIdx !== undefined && rows[focusIdx]) rows[focusIdx].querySelector('input').focus();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#calc-bar-toggle button'), function(b){
+    b.addEventListener('click', function(){ calc.bar = b.getAttribute('data-bar'); saveCalc(); renderCalc(); });
+  });
+  document.getElementById('calc-add').addEventListener('click', function(){
+    calc.weights.push(''); saveCalc(); renderCalc(calc.weights.length - 1);
+  });
+  document.getElementById('calc-clear').addEventListener('click', function(){
+    calc.weights = ['', '', '']; saveCalc(); renderCalc();
+  });
+  renderCalc();
 
   document.querySelectorAll('nav.tabbar button').forEach(function(btn){
     btn.addEventListener('click', function(){
